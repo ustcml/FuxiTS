@@ -1,0 +1,237 @@
+METR_LA:
+  location: Los Angeles County, USA
+  period:
+    start: 2012-3-1
+    end: 2012-6-27
+  #url: https://github.com/liyaguang/DCRNN
+  url: datasets/METRLA/
+  sample_freq: 5m
+  description: The METR-LA dataset collected in the highway by loop detectors, contains traffic speed data from 207 sensors
+
+LOS_LOOP:
+  location: Los Angeles County USA,
+  period:
+    start: 2012-3-1
+    end: 2012-6-27
+  url: https://github.com/lehaifeng/T-GCN/tree/master/data
+  description: It is slightly different from METR_LA, and the missing values are supplemented by linear interpolation
+
+SZ_TAXI:
+  location: Shenzhen, China
+  period:
+    start: 2015-1-1
+    end: 2015-1-31
+  url: https://github.com/lehaifeng/T-GCN/tree/master/data
+  description: The SZ-Taxi dataset contains the taxi trajectory of Shenzhen, including roads adjacency matrix and road traffic speed information
+
+LOOP_SEATTLE:
+  location: Greater Seattle Area, USA
+  period:
+    start: 2015-1-1
+    end: 2015-12-31
+  url: https://github.com/zhiyongc/Seattle-Loop-Data
+  description: The Loop Seattle dataset is collected by the inductive loop detectors deployed on freeways (I-5, I-405, I-90, and SR-520) in Seattle area and contains traffic state data from 323 sensor stations
+
+Q_TRAFFIC:
+  location: Beijing, China
+  period:
+    start: 2017-4-1
+    end: 2017-5-31
+  url: https://github.com/JingqingZ/BaiduTraffic
+  description: The Q-Traffic dataset contains three sub-datasets query sub-dataset, traffic speed sub-dataset and road network sub-dataset
+  
+
+
+PEMS:
+  location: California, USA
+  period:
+    start: 2001
+    end: present
+  url: http://pems.dot.ca.gov
+  description: PEMS records California highway speed data, including time_hour, average_time, lane_points.
+
+PEMSD3:
+  location: District 3 of California, USA
+  period:
+    start: 2018-9-1
+    end: 2018-11-30
+  url: https://github.com/Davidham3/STSGCN
+  description: The PEMSD3 dataset includes 358 sensors and flow information.
+
+PEMSD4:
+  location: San Francisco Bay Area, USA
+  period:
+    start: 2018-1-1
+    end: 2018-2-28
+  url:  https://github.com/Davidham3/ASTGCN/tree/master/data/PEMS04
+  description: The PEMSD4 dataset describes the the speed flow occupancy information of California freeway and contains 3848 sensors on 29 roads.
+
+PEMSD7:
+  location: District 7 of California, USA
+  period:
+    start: 2016-7-1
+    end: 2016-8-31
+  url:  https://github.com/Davidham3/STSGCN
+  description: The PEMSD7 dataset contains traffic flow information from 883 sensor stations.
+
+PEMSD8:
+  location: San Bernardino Area, USA
+  period:
+    start: 2016-7-1
+    end: 2016-8-31
+  url:  https://github.com/Davidham3/STSGCN
+  description: The PEMSD8 dataset describes the speed occupancy of California freeways with data from 1979 sensors on 8 roads.
+
+PEMSD7(M):
+  location: District 7 of California, USA
+  period:
+    start: 2012-5-1
+    end: 2012-6-30
+  url:  https://github.com/Davidham3/STGCN/tree/master/datasets
+  description: The PEMSD7(M) dataset describes highway speed information (weekdays) at 228 stations in the 7th District of California.
+
+PEMS_BAY:
+  location: San Bernardino Area, USA
+  period:
+    start: 2017-1-1
+    end: 2017-6-30
+  url:  https://github.com/liyaguang/DCRNN
+  description: The PEMS-BAY dataset contains 6 months of statistics on traffic speed, including 325 sensors.
+
+BEIJING_SUBWAY:
+  location: Beijing, China
+  period:
+    start: 2016-2-29
+    end: 2016-8-3
+  url:  https://github.com/JinleiZhangBJTU/ResNet-LSTM-GCN
+  description: This dataset is collected from the Beijing subway between 05:00 and 23:00 for five consecutive weeks from February 29 to April 3, 2016. There were 17 lines and 276 subway stations (excluding the airport express line and the stations on it) in March 2016 in Beijing.
+
+M_DENSE:
+  location: Madrid, Spain
+  period:
+    start: 2018-1-1
+    end: 2019-12-21
+  url:  https://github.com/rdemedrano/crann_traffic
+  description: This dataset contains historical data of traffic measurements in the city of Madrid. The measurements are taken every 15 minutes at each point, including traffic intensity in number of cars per hour.
+
+
+ROTTERDAM:
+  location: Rotterdam, Holland
+  period:
+    start: unknown
+    end: unknown
+  url: https://github.com/RomainLITUD/DGCN_traffic_forecasting
+  description: ROTTERDAM dataset contains traffic state information of 208 links.
+  
+SHMETRO:
+  location: Shanghai, China
+  period:
+    start: 2016-7-1
+    end: 2016-9-30
+  url: https://github.com/ivechan/PVCGN
+  description: This dataset was built based on the metro system of Shanghai, China. A total of 811.8 million transaction records were collected from Jul. 1st 2016 to Sept. 30th 2016, with 8.82 million ridership per day
+
+HZMETRO:
+  location: Hangzhou, China
+  period:
+    start: 2019-1-1
+    end: 2019-1-25
+  url: https://github.com/ivechan/PVCGN
+  description: This dataset was created with the transaction records of the Hangzhou metro system collected in January 2019. With 80 operational stations and 248 physical edges, this system has 2.35 million ridership per day.
+
+TaxiBJ:
+  location: Beijing, China
+  period:
+    start: unknown
+    end: unknown
+  url: https://github.com/TolicWang/DeepST/issues/3
+  description: The TaxiBJ dataset contains the taxicab GPS data, including crowd flow, meteorology and holiday information.
+
+T_DRIVE:
+  location: Beijing, China
+  period:
+    start: 2008-2-2
+    end: 2008-2-8
+  url: https://www.microsoft.com/en-us/research/publication/t-drive-trajectory-data-sample/
+  description: The T-Drive trajectory dataset sample containing the weekly trajectories of 10,357 Beijing taxis is about 15 million points, and the total distance of trajectories reaches 9 million kilometers.
+
+PORTO:
+  location: Porto, Portugal
+  period:
+    start: 2013-7-1
+    end: 2014-6-30
+  url: https://archive.ics.uci.edu/ml/datasets/Taxi+Service+Trajectory+-+Prediction+Challenge%2C+ECML+PKDD+2015
+  description: The Porto dataset describes trajectories performed by all the 442 taxis running in the city of Porto, in Portugal.
+
+
+NYCTAXI:
+  location: New York, USA
+  period:
+    start: unknown
+    end: unknown
+  url: https://www1.nyc.gov/site/tlc/about/tlc-trip-record-data.page
+  description: The NYC-Taxi dataset contains trajectories of different types of taxi collected by GPS for New York City from 2009 to 2020.
+
+NYCBIKE:
+  location: New York, USA
+  period:
+    start: unknown
+    end: unknown
+  url: https://www.citibikenyc.com/system-data
+  description: The NYC-Bike dataset contains bike trajectories collected from NYC CitiBike system.
+
+AUSTINRIDE:
+  location:  Austin, USA
+  period:
+    start: 2016-6-4
+    end: 2017-4-13
+  url: https://data.world/ride-austin/ride-austin-june-6-april-13
+  description: The AustinRide dataset contains Austin ride trajectories spans from August 1, 2016 to April 13, 2017, including over 1.4 million trips.
+
+BIKEDC:
+  location:  Washington, USA
+  period:
+    start: 2010-9-20
+    end: 2020-10-1
+  url: https://www.capitalbikeshare.com/system-data
+  description: The BikeDC dataset describes the bike trails of the Washington Bicycle System, which includes 472 stops.
+
+BIKECHI:
+  location:  Chicago, USA
+  period:
+    start: 2013-6-27
+    end: 2018-6-27
+  url: https://www.divvybikes.com/system-data
+  description: The BikeCHI dataset shows the development of bike-sharing in Chicago from 2013 to 2018.
+
+Chengdu_Taxi_Sample1:
+  location:  Chengdu, China
+  period:
+    start: 2014-8-3
+    end: 2014-8-30
+  url: https://github.com/UrbComp/DeepTTE/tree/master/data
+  description: Chengdu_Taxi_Sample1 dataset is part of Chengdu_Taxi dataset. It contains 1800 taxi trajectory data in Chengdu.
+
+Beijing_Taxi_Sample:
+  location:  Beijing, China
+  period:
+    start: 2013-10-1
+    end: 2013-10-31
+  url: https://github.com/YibinShen/TTPNet/tree/master/data
+  description: Beijing_Taxi_Sample dataset is part of Beijing_Taxi dataset. It contains 1000 taxi trajectory data per day in October 2013.
+
+NYC_RISK:
+  location:  Chicago, USA
+  period:
+    start: 2013-1-1
+    end: 2013-12-31
+  url: https://github.com/Echohhhhhh/GSNet
+  description: The NYC accident dataset contains road, risk and POI data of New York City in 2013.
+
+CHICAGO_RISK:
+  location:  New York, USA
+  period:
+    start: 2016-2-1
+    end: 2016-9-30
+  url: https://github.com/Echohhhhhh/GSNet
+  description: The CHICAGO accident dataset contains road and risk data of Chicago in 2016.
