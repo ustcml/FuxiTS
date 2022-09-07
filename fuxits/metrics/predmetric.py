@@ -2,44 +2,28 @@ import torchmetrics.functional as M
 import torch.nn.functional as F
 import torch
 import sys, math
-
-metric_eps = 1e-10
+import losses
 
 def masked_mean_absolute_error(pred, target, mask_val=float('nan')):
-    if math.isnan(mask_val):
-        mask = ~torch.isnan(target)
-    else:
-        mask = torch.abs(target - mask_val) > metric_eps
-    mask = mask.float()
-    mask /= mask.mean()
-    loss = torch.abs(pred - target)
-    loss = loss * mask
-    torch.nan_to_num_(loss)
-    return torch.mean(loss)
+    mask = losses.ismask(target, mask_val).float()
+    error = torch.abs(pred - target)
+    error = error * mask / mask.mean()
+    torch.nan_to_num_(error)
+    return torch.mean(error)
 
 def masked_mean_absolute_percentage_error(pred, target, mask_val=float('nan')):
-    if math.isnan(mask_val):
-        mask = ~torch.isnan(target)
-    else:
-        mask = torch.abs(target - mask_val) > metric_eps
-    mask = mask.float()
-    mask /= mask.mean()    
-    error = torch.abs(pred - target) / torch.clamp(torch.abs(target), min=metric_eps)
-    error = error * mask
+    mask = losses.ismask(target, mask_val).float()
+    error = torch.abs(pred - target) / torch.clamp(torch.abs(target), min=1e-10)
+    error = error * mask / mask.mean()
     torch.nan_to_num_(error)
     return torch.mean(error)
     
 
 
 def masked_mean_squared_error(pred, target, mask_val=float('nan'), squared=True):
-    if math.isnan(mask_val):
-        mask = ~torch.isnan(target)
-    else:
-        mask = torch.abs(target - mask_val) > metric_eps
-    mask = mask.float()
-    mask /= mask.mean()
+    mask =  losses.ismask(target, mask_val).float()
     error = (pred - target) ** 2
-    error = error * mask
+    error = error * mask / mask.mean()
     torch.nan_to_num_(error)
     if squared:
         return torch.mean(error)

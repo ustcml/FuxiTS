@@ -1,8 +1,9 @@
-from fuxits.utils.utils import set_color, parser_yaml, color_dict, print_logger, xavier_normal_initialization
+import losses
+from fuxits.utils import set_color, parser_yaml, color_dict, print_logger, xavier_normal_initialization
 from pytorch_lightning import LightningModule, seed_everything, Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger 
-from fuxits.data.dataset import TSDataset
+from fuxits.data import TSDataset
 import os, torch
 class Predictor(LightningModule):
     def __init__(self, config):
@@ -14,7 +15,9 @@ class Predictor(LightningModule):
         if self.config['seed'] is not None:
             seed_everything(self.config['seed'], workers=True)
         self.config = config
-        self.loss_fn = self._get_loss_func()
+        self.loss = self._get_loss()
+        if 'missing_value' in self.config and self.config['missing_value'] is not None:
+            self.loss = losses.MaskedLoss(self.loss, self.config['missing_value'])
         self.save_hyperparameters()
         
     def reset_parameters(self):
@@ -67,12 +70,15 @@ class Predictor(LightningModule):
     def _test_step(self, batch, metrics):
         y_pred = self.forward(batch)
         y_true = batch['y']
-        return [func(y_pred, y_true) for _, func in metrics]
+        if 'missing_value' in self.config and self.config['missing_value'] is not None:
+            return [func(y_pred, y_true, self.config['missing_value']) for _, func in metrics], losses.ismask(y_true, self.config['missing_value']).sum() 
+        else:
+            return [func(y_pred, y_true) for _, func in metrics], y_true.numel()
         
     def training_step(self, batch, batch_idx):
-        y_ = self.forward(batch)
-        y = batch['y']
-        loss = self.loss_fn(y, y_)
+        y_pred = self.forward(batch)
+        y_true = batch['y']
+        loss = self.loss_fn(y_true, y_pred)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -85,7 +91,7 @@ class Predictor(LightningModule):
             mode=self.config['early_stop_mode'], save_last=True)
         return [ckp_callback, early_stopping]
     
-    def _get_loss_func(self):
+    def _get_loss(self):
         pass
 
     def validation_epoch_end(self, outputs):
@@ -95,12 +101,11 @@ class Predictor(LightningModule):
         self._test_epoch_end(outputs, False)
     
     def _test_epoch_end(self, outputs, is_valid):
-        metric_name = 'val_metrics' if is_valid else 'test_metrics'
-        metric_name = self.config[metric_name] 
+        metric_name = self.config['val_metrics' if is_valid else 'test_metrics'] 
         if not isinstance(self.config[metric_name], list):
             metric_name = [metric_name]
-        metric, bs = zip(*outputs)
+        metric, numel = zip(*outputs)
         metric = torch.tensor(metric)
-        bs = torch.tensor(bs)
-        metric = (metric * bs.view(-1, 1)).sum(0) / bs.sum()
+        numel = torch.tensor(numel)
+        metric = (metric * numel.view(-1, 1)).sum(0) / numel.sum()
         self.log_dict(dict(zip(metric_name, metric)), on_step=False, on_epoch=True)
