@@ -1,4 +1,3 @@
-import imp
 from fuxits.predictor.predictor import Predictor
 from fuxits.layers.series_decomp import Series_Decomposition
 from fuxits.layers.embedding import DataEmbedding_wo_pos

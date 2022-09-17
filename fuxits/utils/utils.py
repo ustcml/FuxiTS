@@ -1,4 +1,4 @@
-import yaml, re, importlib, os, logging
+import yaml, re, importlib, os, logging, pkgutil
 print_logger = logging.getLogger("pytorch_lightning")
 print_logger.setLevel(logging.INFO)
 def set_color(log, color, highlight=True, keep=False):
@@ -63,6 +63,7 @@ def color_dict_normal(dict_, keep=True):
 
 
 def get_model(model_name):
+    import fuxits
     r"""Automatically select model class based on model name
 
     Args:
@@ -71,28 +72,35 @@ def get_model(model_name):
     Returns:
         Recommender: model class
     """
-    model_submodule = ['ae', 'mf', 'seq', 'fm']
-
-    model_file_name = model_name.lower()
-    model_module = None
-    for submodule in model_submodule:
-        module_path = '.'.join(['torchrec.model', submodule, model_file_name])
-        if importlib.util.find_spec(module_path, __name__):
-            model_module = importlib.import_module(module_path, __name__)
+    model_submodule = ['predictor', 'detector', 'explainer', 'intervener']
+    for id, m in enumerate(model_submodule):
+        module = importlib.import_module('fuxits.' + m)
+        model_module = find_model(module, model_name.lower())
+        if model_module is not None:
             break
-
     if model_module is None:
         raise ValueError('`model_name` [{}] is not the name of an existing model.'.format(model_name))
+    else:
+        model_module = importlib.import_module(model_module)
     model_class = getattr(model_module, model_name)
     dir = os.path.dirname(model_module.__file__)
     conf = dict()
-    fname = os.path.join(os.path.dirname(dir), 'basemodel.yaml')
+    fname = os.path.join(os.path.dirname(dir), 'config/{}.yml'.format(model_submodule[id]))
     conf.update(parser_yaml(fname))
-    for name in ['all', model_file_name]:
-        fname = os.path.join(dir, 'config', name+'.yaml')
-        if os.path.isfile(fname):
-            conf.update(parser_yaml(fname))
+    fname = os.path.join(dir, 'config', model_name+'.yml')
+    if os.path.isfile(fname):
+        conf.update({'model':parser_yaml(fname)})
     return model_class, conf
+
+def find_model(package, model_name):
+    if isinstance(package, str):
+        package = importlib.import_module(package)
+    for _, name, ispkg in pkgutil.iter_modules(package.__path__):
+        if not ispkg and name == model_name:
+            return package.__name__ + '.' + name
+        if ispkg:
+            return find_model(package.__name__+'.'+ name, model_name)
+    return None
 
 
 
@@ -115,6 +123,7 @@ def xavier_normal_initialization(module):
         nn.init.xavier_normal_(module.weight.data)
         if module.bias is not None:
             nn.init.constant_(module.bias.data, 0)
+
 
 
 def xavier_uniform_initialization(module):

@@ -31,6 +31,7 @@ kinds of time expressions.
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+from builtins import isinstance
 import re
 
 SIGN        = r'(?P<sign>[+|-])?'
@@ -179,3 +180,19 @@ def timeparse(sval, granularity='seconds'):
                 # SECS is a float, we will return a float
                 return sign * sum([MULTIPLIERS[k] * float(v) for (k, v) in
                             list(mdict.items()) if v is not None])
+
+
+def stepparse(svals):
+    if isinstance(svals, str):
+        svals = [svals]
+    mdict_all = {}
+    for sval in svals:
+        sval = COMPILED_SIGN.match(sval).groupdict()['unsigned']
+        for timefmt in COMPILED_TIMEFORMATS:
+            match = timefmt.match(sval)
+            if match and match.group(0).strip():
+                mdict = match.groupdict()
+                for (k, v) in mdict.items():
+                    if v is not None:
+                        mdict_all[k] = v
+    return mdict_all

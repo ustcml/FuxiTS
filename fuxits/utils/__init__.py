@@ -1,1 +1,2 @@
-from utils import set_color, parser_yaml, color_dict, print_logger, xavier_normal_initialization, color_dict_normal, get_model, xavier_uniform_initialization
+from fuxits.utils.utils import *
+from fuxits.utils.timeparse import timeparse

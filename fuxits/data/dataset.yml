@@ -4,7 +4,7 @@ METR_LA:
     start: 2012-3-1
     end: 2012-6-27
   #url: https://github.com/liyaguang/DCRNN
-  url: datasets/METRLA/
+  url: /amax/home/dove/dataset/traffic/METRLA
   sample_freq: 5m
   description: The METR-LA dataset collected in the highway by loop detectors, contains traffic speed data from 207 sensors
 

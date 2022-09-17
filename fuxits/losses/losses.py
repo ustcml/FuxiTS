@@ -1,9 +1,8 @@
 import torch.nn as nn
 from torch import Tensor
-from . import ismask
 from torch.nn.modules.loss import _Loss
 import torch.nn.functional as F
-import torch
+import torch, math
 
 def divide_no_nan(a: Tensor, b: Tensor):
     div = a/b
@@ -14,16 +13,19 @@ class MaskedLoss(nn.Module):
     '''the parameter ``reduction'' of loss should be set to ``none"
     '''
     def __init__(self, loss: _Loss, missing_val=float('nan')) -> None:
-        assert missing_val != None
-        assert loss.reduction != 'none'
+        if loss.reduction == 'none':
+            assert missing_val != None
         super().__init__()
         self.loss = loss
         self.missing_value = missing_val
 
     def forward(self, input: Tensor, target: Tensor):
-        mask = ismask(target, self.missing_value).float()
-        mask_loss = self.loss(input, target) * mask / mask.mean()
-        return mask_loss.mean()
+        if self.loss.reduction == 'none':
+            mask = ismask(target, self.missing_value).float()
+            mask_loss = self.loss(input, target) * mask / mask.mean()
+            return mask_loss.mean()
+        else:
+            return self.loss(input, target)
 
 
 class MAPELoss(_Loss):
@@ -37,3 +39,11 @@ class MAPELoss(_Loss):
         target = divide_no_nan(input, target)
         input = torch.ones_like(input)
         return F.l1_loss(input, target, reduction=self.reduction)
+
+
+def ismask(data, mask_val):
+    assert mask_val is not None
+    mask = ~torch.isnan(data)
+    if not math.isnan(mask_val):
+        mask = mask & (torch.abs(data - mask_val) > torch.finfo('float').eps)
+    return mask

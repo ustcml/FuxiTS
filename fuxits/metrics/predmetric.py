@@ -1,8 +1,7 @@
 import torchmetrics.functional as M
 import torch.nn.functional as F
 import torch
-import sys, math
-import losses
+import fuxits.losses.losses as losses
 
 def masked_mean_absolute_error(pred, target, mask_val=float('nan')):
     mask = losses.ismask(target, mask_val).float()

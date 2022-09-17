@@ -1,2 +1,1 @@
-import imp
-from data.dataset import TSDataset
+from fuxits.data.dataset import TSDataset

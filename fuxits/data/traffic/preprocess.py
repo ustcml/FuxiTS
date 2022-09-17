@@ -1,8 +1,7 @@
-import imp
 import os
 import pandas as pd
 import numpy as np
-from utils.timeparse import timeparse
+from fuxits.utils.timeparse import timeparse
 def parser_yaml(config_path):
     import yaml,re
     loader = yaml.FullLoader
@@ -22,7 +21,7 @@ def parser_yaml(config_path):
         ret = yaml.load(f.read(), Loader=loader)
     return ret
 
-config = parser_yaml("data/dataset.yml")
+config = parser_yaml("fuxits/data/dataset.yml")
 
 
 class TrafficStatePreproc:
@@ -52,23 +51,28 @@ class METR_LA(TrafficStatePreproc):
     def __init__(self) -> None:
         self.data_meta = config[__class__.__name__]
 
-    def collect_rawdata(self, flowname='metr-la.h5', adjname='W_metrla.csv'):
+    def collect_rawdata(self, flowname='metr-la.h5', adjname=['distances_la_2012.csv', 'metr_ids.txt']):
         flow = pd.read_hdf(os.path.join(self.data_meta['url'], flowname)).values
-        A = pd.read_csv(os.path.join(self.data_meta['url'], adjname)).values
-        return flow, A
+        sensor_ids_file = os.path.join(self.data_meta['url'], adjname[1])
+        distance_file = os.path.join(self.data_meta['url'], adjname[0])
+        with open(sensor_ids_file) as f:
+            sensor_ids = dict((id, i) for i, id in enumerate(f.read().strip().split(',')))
+        dist_df = pd.read_csv(distance_file,dtype={'from': 'str', 'to': 'str'})
+        dist_df = dist_df[dist_df['from'].isin(sensor_ids) & dist_df['to'].isin(sensor_ids)]
+        dist_df.replace({'from':sensor_ids, 'to':sensor_ids}, inplace=True)
+        return np.expand_dims(flow, -1), (dist_df['from'], dist_df['to'], dist_df['cost']), len(sensor_ids)
     
-    def convert_rawdata(self, flow, A):
-        def convert_adj(W:np.ndarray, sigma2=0.1, epsilon=0.5):
-            n = W.shape[0]
-            W = W /10000
-            W[W<np.finfo(float).eps] = np.inf
-            output = np.exp(-W * W / sigma2) 
-            output[output<epsilon] = 0.
-            np.fill_diagonal(output, 0.)
-            return output
+    def convert_rawdata(self, flow, coo, num_nodes):
+        def convert_adj():
+            A = np.zeros([num_nodes]*2)
+            A[coo[0], coo[1]] = coo[2]
+            return A
         return {'state':flow, 
-                'adjacency':convert_adj(A), 
-                'sample_freq': timeparse(self.data_meta['sample_freq'])//60 }
+                'sample_freq': timeparse(self.data_meta['sample_freq'])//60,
+                'features': {'num_nodes': flow.shape[1], 
+                            'in_channels': flow.shape[-1],
+                            'static_adj':convert_adj()}
+                }
         
 
 class LOS_LOOP(TrafficStatePreproc):
