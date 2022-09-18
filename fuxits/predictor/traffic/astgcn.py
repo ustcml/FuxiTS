@@ -14,7 +14,7 @@ class ASTGCN(Predictor):
         chebpoly = torch.stack(list(compute_cheb_poly(static_adj, cheb_k)))
         self.submodules = nn.ModuleList([ASTGCN_Sub(num_nodes, _, in_channels, chebpoly, pred_steps, num_chev_filter, cheb_k, num_time_filter, time_cov_strides) for _ in hist_steps])
         if len(self.submodules) > 1:
-            self.weight = nn.parameter.Parameter(torch.empty(self.train_config['batch_size'], num_nodes, pred_steps))
+            self.weight = nn.parameter.Parameter(torch.empty(1, pred_steps, num_nodes, in_channels))
         self.reset_parameters()
     
     def forward(self, x):
@@ -33,12 +33,12 @@ class ASTGCN_Sub(nn.Module):
         super().__init__()
         self.modulelist = nn.ModuleList([ASTGCN_Block(num_nodes, hist_steps, in_channels, num_chev_filter, cheb_k, num_time_filter, time_cov_strides, static_adj)] + \
             [ASTGCN_Block(num_nodes, hist_steps // time_cov_strides, num_time_filter, num_chev_filter, cheb_k, num_time_filter, 1, static_adj) for _ in range(num_blocks - 1)])
-        self.conv = nn.Conv2d(hist_steps // time_cov_strides, pred_steps, kernel_size=(1, num_time_filter))
+        self.conv = nn.Conv2d(hist_steps // time_cov_strides, pred_steps, kernel_size=(1, num_time_filter - in_channels + 1))
 
     def forward(self, x):
         for m in self.modulelist:
             x = m(x)
-        return self.conv(x.permute(0, 3, 1, 2))
+        return self.conv(x.permute(0, 3, 1, 2)) # B x N x F x T -> B x T x N x F -> B x T_out x N x F_in
 
 class ASTGCN_Block(nn.Module):
     def __init__(self, num_nodes, hist_steps, in_channels, num_chev_filter, cheb_k, num_time_filter, time_cov_strides, static_adj) -> None:

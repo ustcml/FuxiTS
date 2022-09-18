@@ -1,4 +1,4 @@
-hist_steps: [1h]
+hist_steps: [1h, 2d]
 pred_steps: 1h
 cheb_k: 3
 time_cov_strides: 2
