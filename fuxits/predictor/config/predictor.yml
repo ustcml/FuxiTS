@@ -7,7 +7,7 @@ train:
   learner: adam
   scheduler: ~
   epochs: 100
-  batch_size: 64
+  batch_size: 128
   shuffle: True
   save_path: ~
   num_workers: 12
@@ -17,7 +17,7 @@ train:
 
 eval:
   test_metrics: [rmse, mae, mape]
-  val_metrics: [rmse]
+  val_metrics: [mae]
   early_stop_mode: min
   early_stop_patience: 10
   batch_size: 512

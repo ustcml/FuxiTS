@@ -89,7 +89,7 @@ def get_model(model_name):
     conf.update(parser_yaml(fname))
     fname = os.path.join(dir, 'config', model_name+'.yml')
     if os.path.isfile(fname):
-        conf.update({'model':parser_yaml(fname)})
+        conf.update(parser_yaml(fname))
     return model_class, conf
 
 def find_model(package, model_name):
