@@ -4,8 +4,6 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 from fuxits.predictor.graphutils import laplacian, scale_lapacian
-from pytorch_lightning import LightningModule
-
 class ASTGCN(Predictor):
     def __init__(self, config, in_channels, num_nodes, hist_steps, pred_steps, static_adj, **kwargs):
         super().__init__(config)
@@ -17,6 +15,7 @@ class ASTGCN(Predictor):
         self.submodules = nn.ModuleList([ASTGCN_Sub(num_nodes, _, in_channels, chebpoly, pred_steps, num_chev_filter, cheb_k, num_time_filter, time_cov_strides) for _ in hist_steps])
         if len(self.submodules) > 1:
             self.weight = nn.parameter.Parameter(torch.empty(self.train_config['batch_size'], num_nodes, pred_steps))
+        self.reset_parameters()
     
     def forward(self, x):
         if len(self.submodules) > 1:
@@ -25,7 +24,7 @@ class ASTGCN(Predictor):
             return self.submodules[0](x[0].permute(0, 2, 3, 1))
     
     def _get_loss(self):
-        return losses.MSELoss()
+        return losses.L1Loss()
 
         
 

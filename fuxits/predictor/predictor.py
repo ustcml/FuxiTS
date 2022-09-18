@@ -41,7 +41,7 @@ class Predictor(LightningModule):
         logger = TensorBoardLogger(save_dir=save_dir, name="tensorboard")
         self.reset_parameters()
         train_loader = train_data.loader(batch_size=self.train_config['batch_size'], \
-            shuffle=False, num_workers=self.train_config['num_workers']) ## to do, replace shuffle with True
+            shuffle=True, num_workers=self.train_config['num_workers']) ## to do, replace shuffle with True
         if val_data:
             val_loader = val_data.loader(batch_size=self.eval_config['batch_size'],\
             shuffle=False, num_workers=self.eval_config['num_workers'])

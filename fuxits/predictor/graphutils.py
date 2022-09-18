@@ -40,7 +40,7 @@ def laplacian(adj_t, normalized=None, add_self_loops=False):
     else:
         if add_self_loops:
             adj_t = add_self_loops_fun(adj_t)
-        L = degree(adj_t) - adj_t
+        L = torch.diag(degree(adj_t)) - adj_t
     return L
 
 def scale_lapacian(L:torch.Tensor):
