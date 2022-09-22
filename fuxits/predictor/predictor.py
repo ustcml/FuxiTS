@@ -39,7 +39,6 @@ class Predictor(LightningModule):
         print_logger.info('save_dir:' + save_dir)
         #refresh_rate = 0 if run_mode in ['light', 'tune'] else 1
         logger = TensorBoardLogger(save_dir=save_dir, name="tensorboard")
-        self.reset_parameters()
         train_loader = train_data.loader(batch_size=self.train_config['batch_size'], \
             shuffle=True, num_workers=self.train_config['num_workers']) ## to do, replace shuffle with True
         if val_data:

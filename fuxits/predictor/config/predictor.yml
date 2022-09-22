@@ -7,7 +7,7 @@ train:
   learner: adam
   scheduler: ~
   epochs: 100
-  batch_size: 128
+  batch_size: 64
   shuffle: True
   save_path: ~
   num_workers: 12

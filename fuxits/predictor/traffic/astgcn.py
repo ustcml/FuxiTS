@@ -57,7 +57,7 @@ class ASTGCN_Block(nn.Module):
         :return: (batch_size, N, nb_time_filter, T)
         '''
         x1 = self.TAt(x)
-        x2 = self.cheb_conv(x1, self.SAt(x1))
+        x2 = self.cheb_conv(x, self.SAt(x1))
         x3 = self.time_conv(x2.transpose(1, 2))
         x_residual = self.residual_conv(x.transpose(1, 2))
         x_residual = self.ln(F.relu(x_residual + x3).transpose(1, 3)).permute(0, 2, 3, 1)
@@ -143,10 +143,11 @@ class ChebConv(nn.Module):
         :param x: (batch_size, N, F_in, T)
         :return: (batch_size, N, F_out, T)
         '''
+        x_ = x.reshape(x.shape[0], x.shape[1], -1)
         output = torch.zeros(*x.shape[:2], self.out_channels, x.shape[-1]).type_as(x)
         for k in range(self.chebpoly.shape[0]):
             T_k = self.chebpoly[k] * dyna_adj # (B, N, N)
-            rhs = torch.matmul(x.view(x.shape[0], x.shape[1], -1).transpose(1, 2), T_k).transpose(1, 2).view(*x.shape) # (B, N, F, T)
+            rhs = torch.matmul(T_k.transpose(1, 2), x_).view(*x.shape) # (B, N, F, T)
             output = output + self.lins[k](rhs.transpose(-1, -2)).transpose(-1, -2)
         return F.relu(output)
 
