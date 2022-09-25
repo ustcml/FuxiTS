@@ -19,9 +19,9 @@ class ASTGCN(Predictor):
     
     def forward(self, x):
         if len(self.submodules) > 1:
-            return torch.stack([m(_.permute(0, 2, 3, 1)) * w for m, w, _ in zip(self.submodules, self.weight, x)]).sum(dim=0)
+            return torch.stack([m(_) * w for m, w, _ in zip(self.submodules, self.weight, x)]).sum(dim=0)
         else:
-            return self.submodules[0](x[0].permute(0, 2, 3, 1))
+            return self.submodules[0](x[0])
     
     def _get_loss(self):
         return losses.L1Loss()
@@ -36,9 +36,10 @@ class ASTGCN_Sub(nn.Module):
         self.conv = nn.Conv2d(hist_steps // time_cov_strides, pred_steps, kernel_size=(1, num_time_filter - in_channels + 1))
 
     def forward(self, x):
+        # x : bfnt
         for m in self.modulelist:
             x = m(x)
-        return self.conv(x.permute(0, 3, 1, 2)) # B x N x F x T -> B x T x N x F -> B x T_out x N x F_in
+        return self.conv(x.transpose(1, 3)) # B x F x N x T -> B x T x N x F -> B x T_out x N x F_in
 
 class ASTGCN_Block(nn.Module):
     def __init__(self, num_nodes, hist_steps, in_channels, num_chev_filter, cheb_k, num_time_filter, time_cov_strides, static_adj) -> None:
@@ -53,14 +54,14 @@ class ASTGCN_Block(nn.Module):
 
     def forward(self, x):
         '''
-        :param x: (batch_size, N, F_in, T)
-        :return: (batch_size, N, nb_time_filter, T)
+        :param x: (batch_size, F_in, N, , T)
+        :return: (batch_size, nb_time_filter, N, T)
         '''
         x1 = self.TAt(x)
         x2 = self.cheb_conv(x, self.SAt(x1))
-        x3 = self.time_conv(x2.transpose(1, 2))
-        x_residual = self.residual_conv(x.transpose(1, 2))
-        x_residual = self.ln(F.relu(x_residual + x3).transpose(1, 3)).permute(0, 2, 3, 1)
+        x3 = self.time_conv(x2)
+        x_residual = self.residual_conv(x)
+        x_residual = self.ln(F.relu(x_residual + x3).transpose(1, 3)).transpose(1, 3)
         return x_residual
 
 
@@ -81,8 +82,8 @@ class Spatial_Attention_layer(nn.Module):
         :param x: (batch_size, N, F_in, T)
         :return: (B, N, N)
         '''
-        lhs = torch.matmul(torch.matmul(x, self.W1), self.W2)  # (b,N,F,T)(T)->(b,N,F)(F,T)->(b,N,T)
-        rhs = torch.matmul(self.W3, x).transpose(-1, -2)  # (F)(b,N,F,T)->(b,N,T)->(b,T,N)
+        lhs = torch.matmul(torch.matmul(x, self.W1).transpose(-1, -2), self.W2)  # (b,F,N,T)(T)->(b,N,F)(F,T)->(b,N,T)
+        rhs = torch.sum(self.W3.view(1,-1,1,1) * x, 1).transpose(-1, -2)  # (F)(b,F,N,T)->(b,N,T)->(b,T,N)
         product = torch.matmul(lhs, rhs)  # (b,N,T)(b,T,N) -> (B, N, N)
         S = torch.matmul(self.Vs, torch.sigmoid(product + self.bs))  # (N,N)(B, N, N)->(B,N,N)
         S_normalized = F.softmax(S, dim=1)
@@ -93,24 +94,24 @@ class Temporal_Attention_layer(nn.Module):
     def __init__(self, in_channels, num_nodes, num_steps):
         super(Temporal_Attention_layer, self).__init__()
         self.U1 = nn.Parameter(torch.FloatTensor(num_nodes))
-        self.U2 = nn.Parameter(torch.FloatTensor(in_channels, num_nodes))
+        self.U2 = nn.Parameter(torch.FloatTensor(num_nodes, in_channels))
         self.U3 = nn.Parameter(torch.FloatTensor(in_channels))
         self.be = nn.Parameter(torch.FloatTensor(1, num_steps, num_steps))
         self.Ve = nn.Parameter(torch.FloatTensor(num_steps, num_steps))
 
     def forward(self, x):
         '''
-        :param x: (batch_size, N, F_in, T)
+        :param x: (batch_size, F_in, N, T)
         :return: (B, T, T)
         '''
-        lhs = torch.matmul(torch.matmul(x.transpose(1, 3), self.U1), self.U2)
-        # x:(B, N, F_in, T) -> (B, T, F_in, N)
-        # (B, T, F_in, N)(N) -> (B,T,F_in)
-        # (B,T,F_in)(F_in,N)->(B,T,N)
-        rhs = torch.matmul(self.U3, x)  # (F)(B,N,F,T)->(B, N, T)
-        product = torch.matmul(lhs, rhs)  # (B,T,N)(B,N,T)->(B,T,T)
+        lhs = torch.matmul(self.U2, torch.matmul(x.transpose(-1, -2), self.U1))
+        # x:(B, F_in, N, T) -> (B, F_in, T, N)
+        # (B, F_in, T, N)(N) -> (B, F_in, T)
+        # (N,F_in)(B, F_in, T)->(B,N,T)
+        rhs = torch.sum(self.U3.view(1,-1,1,1) * x, 1)  # (F)(B,F,N,T)->(B, N, T)
+        product = torch.matmul(lhs.transpose(-1, -2), rhs)  # (B,T,N)(B,N,T)->(B,T,T)
         E = torch.matmul(self.Ve, torch.sigmoid(product + self.be))  # (B, T, T)
-        return torch.matmul(x.view(x.shape[0], -1, x.shape[-1]), F.softmax(E, dim=1)).view(*x.shape)
+        return torch.matmul(x.reshape(x.shape[0], -1, x.shape[-1]), F.softmax(E, dim=1)).view(*x.shape)
 
 class ChebConv(nn.Module):
     '''
@@ -126,29 +127,30 @@ class ChebConv(nn.Module):
         super(ChebConv, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
-        self.lins = torch.nn.ModuleList([
-            nn.Linear(in_channels, out_channels, bias=False) for _ in range(K)
-        ])
+        #self.lins = torch.nn.ModuleList([
+        #    nn.Linear(in_channels, out_channels, bias=False) for _ in range(K)
+        #])
+        self.lins = nn.Parameter(torch.FloatTensor(K, in_channels, out_channels))
         if static_adj.dim() == 3:
             self.register_buffer('chebpoly', static_adj)
             #self.chebpoly = static_adj
         else:
             #self.chebpoly = torch.stack(list(compute_cheb_poly(static_adj, K)))
             self.register_buffer('chebpoly', torch.stack(list(compute_cheb_poly(static_adj, K))))
-            
+        self.chebpoly = self.chebpoly.permute(1, 2, 0)
 
     def forward(self, x, dyna_adj):
         '''
         Chebyshev graph convolution operation
-        :param x: (batch_size, N, F_in, T)
-        :return: (batch_size, N, F_out, T)
-        '''
-        x_ = x.reshape(x.shape[0], x.shape[1], -1)
-        output = torch.zeros(*x.shape[:2], self.out_channels, x.shape[-1]).type_as(x)
-        for k in range(self.chebpoly.shape[0]):
-            T_k = self.chebpoly[k] * dyna_adj # (B, N, N)
-            rhs = torch.matmul(T_k.transpose(1, 2), x_).view(*x.shape) # (B, N, F, T)
-            output = output + self.lins[k](rhs.transpose(-1, -2)).transpose(-1, -2)
+        :param x: (batch_size, F_in, N, T)
+        :return: (batch_size, F_out, N, T)
+        ''' 
+        Tk = torch.unsqueeze(self.chebpoly, 0) * torch.unsqueeze(dyna_adj, -1) # B N M K
+        #B, N = x.shape[:2]
+        #rhs = torch.bmm(Tk.reshape(B, N, -1).transpose(1, 2), x.reshape(B, N, -1)).view(B, N, -1, x.shape[-1]) # B N FT x  B N MK -> B MK FT -> B M KF T 
+        #output = torch.matmul(rhs.transpose(-1, -2), self.lins).transpose(-1, -2)
+        rhs = torch.einsum('bfnt,bnmk->bftmk', x, Tk)
+        output = torch.einsum('bftmk,kfo->bomt', rhs, self.lins)
         return F.relu(output)
 
 

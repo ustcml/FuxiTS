@@ -1,6 +1,7 @@
 from builtins import isinstance
 import torch
 from torch.utils.data import DataLoader, Dataset
+from torch.utils.data._utils.collate import default_collate
 from typing import Tuple, Union, Dict, List
 import importlib
 import numpy as np
@@ -8,6 +9,10 @@ import copy
 from sklearn.preprocessing import StandardScaler
 import typing
 from fuxits.utils.timeparse import stepparse, timeparse
+
+def collate(batch):
+    x, y = default_collate(batch)
+    return [b.transpose(1, -1) for b in x], y  # B x T x N x F -> B x F x N x T
 
 class TSDataset(Dataset):
 
@@ -64,7 +69,7 @@ class TSDataset(Dataset):
         return len(self.anchors)
 
     def loader(self, batch_size, num_workers=3, shuffle=False, drop_last=False):
-        output = DataLoader(self, batch_size=batch_size, num_workers=num_workers, shuffle=shuffle, drop_last=drop_last)
+        output = DataLoader(self, batch_size=batch_size, num_workers=num_workers, shuffle=shuffle, drop_last=drop_last, collate_fn=collate)
         return output
 
     def build(self, \
