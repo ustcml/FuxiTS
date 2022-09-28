@@ -100,7 +100,7 @@ class Predictor(LightningModule):
             return [ckp_callback, early_stopping]
     
     def _get_loss(self):
-        pass
+        return losses.L1Loss()
 
     def validation_epoch_end(self, outputs):
         self._test_epoch_end(outputs, True)

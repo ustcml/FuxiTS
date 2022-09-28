@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import numpy as np
 from fuxits.utils.timeparse import timeparse
+from fuxits.layers.graph import preprocess_graph
 def parser_yaml(config_path):
     import yaml,re
     loader = yaml.FullLoader
@@ -41,9 +42,9 @@ class TrafficStatePreproc:
         """
         pass
     
-    def build(self):
+    def build(self, **kwargs):
         data_list = self.collect_rawdata()
-        return self.convert_rawdata(*data_list)
+        return self.convert_rawdata(*data_list, **kwargs)
 
 class METR_LA(TrafficStatePreproc):
     
@@ -62,16 +63,18 @@ class METR_LA(TrafficStatePreproc):
         dist_df.replace({'from':sensor_ids, 'to':sensor_ids}, inplace=True)
         return np.expand_dims(flow, -1), (dist_df['from'], dist_df['to'], dist_df['cost']), len(sensor_ids)
     
-    def convert_rawdata(self, flow, coo, num_nodes):
-        def convert_adj():
+    def convert_rawdata(self, flow, coo, num_nodes, **kwargs):
+        def convert_adj(mode, **kwargs):
             A = np.zeros([num_nodes]*2)
             A[coo[0], coo[1]] = coo[2]
-            return A
+            kwargs = {k: v for k, v in kwargs.items() if v is not None}
+            return preprocess_graph(mode, A/10000, **kwargs)
+           
         return {'state':flow, 
                 'sample_freq': timeparse(self.data_meta['sample_freq'])//60,
                 'features': {'num_nodes': flow.shape[1], 
                             'in_channels': flow.shape[-1],
-                            'static_adj':convert_adj()}
+                            'static_adj':convert_adj(**kwargs)}
                 }
         
 

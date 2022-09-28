@@ -10,7 +10,7 @@ train:
   batch_size: 64
   shuffle: True
   save_path: ~
-  num_workers: 12
+  num_workers: 0
   devices: 1
   seed: 20
   accelerator: gpu

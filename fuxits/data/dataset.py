@@ -12,7 +12,10 @@ from fuxits.utils.timeparse import stepparse, timeparse
 
 def collate(batch):
     x, y = default_collate(batch)
-    return [b.transpose(1, -1) for b in x], y  # B x T x N x F -> B x F x N x T
+    if isinstance(x, list):
+        return [b.transpose(1, -1) for b in x], y.transpose(1, -1)  # B x T x N x F -> B x F x N x T
+    else:
+        return x.transpose(1, -1), y.transpose(1, -1)
 
 class TSDataset(Dataset):
 
@@ -20,9 +23,9 @@ class TSDataset(Dataset):
     state is set by class construction function.
     """
 
-    def __init__(self, name:str='METR_LA') -> None:
+    def __init__(self, name:str='METR_LA', data_conf=None) -> None:
         data_class = getattr(importlib.import_module('fuxits.data.traffic.preprocess'), name.upper())
-        data = data_class().build()
+        data = data_class().build(**data_conf)
         for k, v in data.items():
             if isinstance(v, np.ndarray):
                 scaler = StandardScaler()
@@ -33,12 +36,15 @@ class TSDataset(Dataset):
 
     @property
     def num_steps(self):
-           return [self.in_steps] + [step for step, _ in self.extra_input]
+        if len(self.extra_input) > 0:
+            return [self.in_steps] + [step for step, _ in self.extra_input]
+        else:
+            return self.in_steps
     
     @property
     def datafeatures(self):
         result = self.features
-        result.update({'hist_steps': self.num_steps, 'pred_steps': self.out_steps})
+        result.update({'hist_steps': self.num_steps, 'pred_steps': self.out_steps if isinstance(self.out_steps, int) else len(self.out_steps)})
         return result
 
     def num_points(self, units='hours'):
@@ -58,12 +64,19 @@ class TSDataset(Dataset):
         else:
             y = self.state[[anchor + _ - 1 for _ in self.out_steps]]
         x = self.state[anchor-self.in_steps : anchor]
-        x_final = [x]
-        for (steps, num_points) in self.extra_input:
-            extra_idx = np.concatenate([np.arange(idx, idx+self.out_steps) \
-                                for idx in np.arange(anchor-steps*num_points, anchor, num_points)])
-            x_final = x_final + [self.state[extra_idx]]
-        return x_final, y
+        if len(self.extra_input) == 0:
+            return x, y
+        else:
+            x_final = [x]
+            for (steps, num_points) in self.extra_input:
+                if isinstance(self.out_steps, list):
+                    extra_idx = np.concatenate([np.arange(idx, idx+self.out_steps) \
+                                        for idx in np.arange(anchor-steps*num_points, anchor, num_points)])
+                else:
+                    extra_idx = np.concatenate([self.out_steps + idx - 1 \
+                                        for idx in np.arange(anchor-steps*num_points, anchor, num_points)])
+                x_final = x_final + [self.state[extra_idx]]
+            return x_final, y
     
     def __len__(self):
         return len(self.anchors)
@@ -74,7 +87,7 @@ class TSDataset(Dataset):
 
     def build(self, \
             ratio:Union[Tuple[int,int,int], Tuple[int,int]], 
-            in_steps:Union[int, List[str]],
+            in_steps:Union[int, str, List[str]],
             out_steps:Union[int, str, List[int]]):
         r"""Build a dataset and split them into train, validation and test dataset.
         for efficiency, we only keep index into these three subsets.
@@ -87,13 +100,12 @@ class TSDataset(Dataset):
         Returns:
             list: A list contains train/vali/test data- [train, vali, test]
         """
+        extra_input = []
         if isinstance(in_steps, list):
             if len(in_steps) > 1:
                 assert all(not s.isdigit() for s in in_steps[1:])
                 extra_input = stepparse(in_steps[1:])
                 extra_input = [(int(v), self.num_points(k)) for k, v in extra_input.items()]
-            else:
-                extra_input = []
                 #extra_input is a tuple of two elements
                 #first parameter: how many steps in preceding to prediction
                 #second parameter: how many data points between steps
@@ -104,9 +116,14 @@ class TSDataset(Dataset):
             else:
                 assert in_steps[0].endswith('h')
                 in_steps = timeparse(in_steps[0]) // 60 // self.sample_freq
+        elif isinstance(in_steps, str):
+            assert in_steps.endswith('h')
+            in_steps = timeparse(in_steps) // 60 // self.sample_freq
         
         if isinstance(out_steps, str):
             out_steps = timeparse(out_steps) // 60 // self.sample_freq
+        elif isinstance(out_steps, list):
+            out_steps = [timeparse(o) // 60 // self.sample_freq for o in out_steps]
         if isinstance(out_steps, int):
             assert in_steps % out_steps == 0
         else:
@@ -120,7 +137,7 @@ class TSDataset(Dataset):
         else:
             valid_start = in_steps
         splits = np.hstack([[valid_start], np.cumsum(splits)])
-        data_idx = [(splits[i-1], splits[i] - out_steps if isinstance(out_steps, int) else out_steps.max()-1) 
+        data_idx = [(splits[i-1], splits[i] - (out_steps if isinstance(out_steps, int) else out_steps.max()-1)) 
                     for i in range(1, splits.shape[0])]
         anchors = [np.arange(*e) for e in data_idx]
         self.in_steps = in_steps
