@@ -1,6 +1,6 @@
 model:
-  hist_steps: [1h]
-  pred_steps: [45m, 1h]
+  hist_steps: 1h
+  pred_steps: [1h]
   cheb_k: 3
   time_cov_kernel: 3
   drop_ratio: 0

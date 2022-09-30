@@ -52,6 +52,7 @@ def laplacian(adj_t, normalized=None, add_self_loops=False):
     '''
 
     if normalized:
+        W = adj_t
         assert normalized in {'sys', 'rw'}
         W = graph_adj_norm(W, normalized=='sys', add_self_loops)
         return torch.eye(W.shape[0]) - W
@@ -135,3 +136,45 @@ class ChebConv(nn.Module):
             output = output + self.bias
 
         return output
+
+
+
+class ChebConvLite(nn.Module):
+    '''
+    K-order chebyshev graph convolution
+    '''
+
+    def __init__(self, in_channels, out_channels, K, static_adj):
+        '''
+        :param K: int
+        :param in_channles: int, num of channels in the input sequence
+        :param out_channels: int, num of channels in the output sequence
+        '''
+        super(ChebConvLite, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.lins = torch.nn.ModuleList([
+            nn.Linear(in_channels, out_channels, bias=False) for _ in range(K)
+        ])
+
+        if isinstance(static_adj, torch.Tensor) and static_adj.dim() == 3:
+            self.register_buffer('chebpoly', static_adj)
+        else:
+            self.register_buffer('chebpoly', compute_cheb_poly(static_adj, K))
+        self.chebpoly = self.chebpoly.permute(2, 0, 1)
+
+    def forward(self, x, dyna_adj=None):
+        '''
+        Chebyshev graph convolution operation
+        :param x: (batch_size, F_in, N, T)
+        :param dyna_adj: (batch_size, N, N) if not None
+        :return: (batch_size, F_out, N, T)
+        '''
+        x = x.transpose(1, 2) # b n f t
+        x_ = x.reshape(*x.shape[:2], -1) # b n ft
+        output = torch.zeros(x.shape[0], self.out_channels, x.shape[1], x.shape[3]).type_as(x)
+        for k in range(len(self.lins)):
+            T_k = self.chebpoly[k] * dyna_adj # (B, N, N)
+            rhs = torch.matmul(T_k.transpose(1, 2), x_).view(*x.shape) # (B, N, F, T)
+            output = output + self.lins[k](rhs.transpose(-1, -2)).permute(0, 3, 1, 2)
+        return F.relu(output)

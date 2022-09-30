@@ -102,6 +102,17 @@ class Predictor(LightningModule):
     def _get_loss(self):
         return losses.L1Loss()
 
+    def training_epoch_end(self, outputs):
+        loss_metric = {'train_'+ k: torch.hstack([e[k] for e in outputs]).mean() for k in outputs[0]}
+        self.log_dict(loss_metric, on_step=False, on_epoch=True)
+        if self.val_check and self.run_mode == 'tune':
+            metric = self.trainer.logged_metrics[self.val_metric]
+            #nni.report_intermediate_result(metric)
+        if self.run_mode in ['light', 'tune'] or self.val_check:
+            print_logger.info(color_dict(self.trainer.logged_metrics, self.run_mode=='tune'))
+        else:
+            print_logger.info('\n'+color_dict(self.trainer.logged_metrics, self.run_mode=='tune'))
+
     def validation_epoch_end(self, outputs):
         self._test_epoch_end(outputs, True)
 

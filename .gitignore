@@ -133,3 +133,5 @@ datasets/
 papers/
 
 tensorboard/
+
+.vscode
