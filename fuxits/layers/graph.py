@@ -5,6 +5,20 @@ import torch.nn.functional as F
 import numpy as np
 
 def preprocess_graph(mode:str, adj, **kwargs):
+
+    def symmetrize(adj, agg):
+        if agg is None:
+            return adj
+        assert agg in {'max', 'mean', 'min'}
+        if agg == 'max':
+            adj_output = np.maximum(adj, adj.T)
+        elif agg == 'mean':
+            adj_output = adj + adj.T
+            adj_output[(adj > 0) & (adj.T > 0)] /= 2
+        elif agg == 'min':
+            adj_output = np.minimum(adj, adj.T)
+        return adj_output
+
     def binary_graph(adj, epsilon=np.finfo(float).eps):
         adj[adj > epsilon] = 1
         return adj
@@ -16,6 +30,7 @@ def preprocess_graph(mode:str, adj, **kwargs):
         np.fill_diagonal(output, 0.)
         return output
 
+    adj = symmetrize(adj, kwargs.pop('sysmetrize_aggregation', None))
     process_funs = {'binary':binary_graph, 'epsilon':epsilon_graph}
     return process_funs[mode](adj, **kwargs)
 
@@ -83,7 +98,7 @@ def compute_cheb_poly(adj, K, normalized=None, add_self_loop=False):
         L_tilde = scale_lapacian(laplacian(adj, normalized=normalized, add_self_loops=add_self_loop))
         LL = [torch.eye(L_tilde.shape[0]), L_tilde]
         for _ in range(2, K):
-            LL.append(2 * L_tilde * LL[-1] - LL[-2])
+            LL.append(2 * L_tilde @ LL[-1] - LL[-2])
         return torch.stack(LL, dim=-1)
 
 

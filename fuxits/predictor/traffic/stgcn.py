@@ -17,7 +17,6 @@ class STGCN(Predictor):
         self.st_conv1 = STConv(cheb_k, time_cov_kernel, hidden_size[:3], num_nodes, chebpoly, drop_ratio)
         self.st_conv2 = STConv(cheb_k, time_cov_kernel, hidden_size[2:], num_nodes, chebpoly, drop_ratio)
         self.output = Output(hidden_size[-1], hist_steps - 4 * (time_cov_kernel - 1), num_nodes, pred_steps)
-        self.reset_parameters()
 
     def forward(self, x):
         x_st1 = self.st_conv1(x)
@@ -93,7 +92,8 @@ class STConv(nn.Module):
         x_t1 = self.tconv1(x) #b-f-n-t -> b-o-n-t1
         x_s = F.relu(self.sconv(x_t1) + x_t1) # b-o-n-t -> b-o-n-t
         x_t2 = self.tconv2(x_s) # b-o-n-t -> b-f-n-t1
-        return self.ln(x_t2.transpose(1,3)).transpose(1,3)     #bfnt->btnf 
+        x_ln = self.ln(x_t2.transpose(1,3)).transpose(1,3)     #bfnt->btnf 
+        return self.dropout(x_ln)
        
 
 

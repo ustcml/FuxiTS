@@ -19,7 +19,6 @@ class ASTGCN(Predictor):
                 self.weight = nn.parameter.Parameter(torch.FloatTensor(1, in_channels, num_nodes, pred_steps))
         else:
             self.submodules = ASTGCN_Sub(num_nodes, hist_steps, in_channels, chebpoly, pred_steps, num_chev_filter, cheb_k, num_time_filter, time_cov_strides)
-        self.reset_parameters()
     
     def forward(self, x):
         if isinstance(self.submodules, nn.ModuleList):

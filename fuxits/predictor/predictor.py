@@ -16,8 +16,6 @@ class Predictor(LightningModule):
         self.eval_config = config['eval']
         self.model_config = config['model']
         self.missing_value = config['missing_value'] if 'missing_value' in config else None
-        if self.train_config['seed'] is not None:
-            seed_everything(self.train_config['seed'], workers=True)
         self.loss = self._get_loss()
         self.loss = losses.MaskedLoss(self.loss, self.missing_value)
         self.save_hyperparameters()
@@ -37,6 +35,9 @@ class Predictor(LightningModule):
         else:
             save_dir = os.getcwd()
         print_logger.info('save_dir:' + save_dir)
+        if self.train_config['seed'] is not None:
+            seed_everything(self.train_config['seed'], workers=True)
+        self.reset_parameters()
         #refresh_rate = 0 if run_mode in ['light', 'tune'] else 1
         logger = TensorBoardLogger(save_dir=save_dir, name="tensorboard")
         train_loader = train_data.loader(batch_size=self.train_config['batch_size'], \
