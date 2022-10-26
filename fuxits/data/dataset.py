@@ -10,12 +10,12 @@ from sklearn.preprocessing import StandardScaler
 import typing
 from fuxits.utils.timeparse import stepparse, timeparse
 
-def collate(batch):
-    x, y = default_collate(batch)
-    if isinstance(x, list):
-        return [b.transpose(1, -1) for b in x], y.transpose(1, -1)  # B x T x N x F -> B x F x N x T
-    else:
-        return x.transpose(1, -1), y.transpose(1, -1)
+#def collate(batch):
+#    x, y = default_collate(batch)
+#    if isinstance(x, list):
+#        return [b.transpose(1, -1) for b in x], y.transpose(1, -1)  # B x T x N x F -> B x F x N x T
+#    else:
+#        return x.transpose(1, -1), y.transpose(1, -1)
 
 class TSDataset(Dataset):
 
@@ -82,7 +82,7 @@ class TSDataset(Dataset):
         return len(self.anchors)
 
     def loader(self, batch_size, num_workers=3, shuffle=False, drop_last=False):
-        output = DataLoader(self, batch_size=batch_size, num_workers=num_workers, shuffle=shuffle, drop_last=drop_last, collate_fn=collate)
+        output = DataLoader(self, batch_size=batch_size, num_workers=num_workers, shuffle=shuffle, drop_last=drop_last)
         return output
 
     def build(self, \

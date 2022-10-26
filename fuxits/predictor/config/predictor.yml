@@ -11,7 +11,7 @@ train:
   shuffle: True
   save_path: ~
   num_workers: 0
-  devices: 1
+  devices: [7]
   seed: 20
   accelerator: gpu
 

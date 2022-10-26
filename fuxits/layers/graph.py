@@ -1,7 +1,6 @@
 import torch
-from scipy.sparse.linalg import eigs
+from scipy.sparse.linalg import eigs, eigsh
 import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
 
 def preprocess_graph(mode:str, adj, **kwargs):
@@ -56,7 +55,7 @@ def add_self_loops_fun(adj_t, weight=1.0):
 
 def laplacian(adj_t, normalized=None, add_self_loops=False):
     '''
-    compute \tilde{L}
+    compute `\\tilde{L}`
     Parameters
     ----------
     W: torch.tensor, shape is (N, N), N is the num of vertices
@@ -77,9 +76,12 @@ def laplacian(adj_t, normalized=None, add_self_loops=False):
         L = torch.diag(degree(adj_t)) - adj_t
     return L
 
-def scale_lapacian(L:torch.Tensor):
-    lambda_max = eigs(L.cpu().numpy(), k=1, which='LR')[0].real
-    return (2 * L) / lambda_max - torch.eye(L.shape[0])
+def scale_lapacian(L:torch.Tensor, lambda_max=None):
+    if lambda_max is None:
+        lambda_max = eigs(L.cpu().numpy(), k=1, which='LR')[0].real
+        return (2 * L) / lambda_max - torch.eye(L.shape[0])
+    else:
+        return (2 * L) / lambda_max - torch.eye(L.shape[0])
 
 
 def compute_cheb_poly(adj, K, normalized=None, add_self_loop=False):
@@ -96,100 +98,93 @@ def compute_cheb_poly(adj, K, normalized=None, add_self_loop=False):
         adj = torch.from_numpy(adj).type(torch.float32)
         #adj[adj > 1e-10] = 1 # this should be done outside of this function
         L_tilde = scale_lapacian(laplacian(adj, normalized=normalized, add_self_loops=add_self_loop))
-        LL = [torch.eye(L_tilde.shape[0]), L_tilde]
-        for _ in range(2, K):
-            LL.append(2 * L_tilde @ LL[-1] - LL[-2])
-        return torch.stack(LL, dim=-1)
+        if K == 1:
+            return L_tilde
+        else:
+            LL = [torch.eye(L_tilde.shape[0]), L_tilde]
+            for _ in range(2, K):
+                LL.append(2 * L_tilde @ LL[-1] - LL[-2])
+            return torch.stack(LL, dim=0)
+
+def laplacianLambdaMax(L, normalization=None, is_undirected=False):
+    eig_fn = eigs
+    if is_undirected and normalization != 'rw':
+        eig_fn = eigsh
+    lambda_max = eig_fn(L, k=1, which='LM', return_eigenvectors=False)
+    return float(lambda_max.real)
 
 
 class ChebConv(nn.Module):
-    '''
-    K-order chebyshev graph convolution
-    '''
-
-    def __init__(self, in_channels, out_channels, K, static_adj, bias=False):
-        '''
-        :param K: int
-        :param in_channles: int, num of channels in the input sequence
-        :param out_channels: int, num of channels in the output sequence
-        '''
+    def __init__(self, in_channels: int, out_channels: int, K: int, num_supports: int = 1, bias: bool = False):
         super(ChebConv, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
-        #self.lins = torch.nn.ModuleList([
-        #    nn.Linear(in_channels, out_channels, bias=False) for _ in range(K)
-        #])
-        self.lins = nn.Parameter(torch.FloatTensor(K, in_channels, out_channels))
+        self.K = K
+        self.weight = nn.Parameter(torch.FloatTensor(num_supports, K, self.out_channels, self.in_channels)) 
         if bias:
-            self.bias = nn.Parameter(torch.FloatTensor(1, out_channels, 1, 1))
-
-        if isinstance(static_adj, torch.Tensor) and static_adj.dim() == 3:
-            self.register_buffer('chebpoly', static_adj)
-            #self.chebpoly = static_adj
+            self.bias = nn.Parameter(torch.FloatTensor(self.out_channels))
         else:
-            #self.chebpoly = torch.stack(list(compute_cheb_poly(static_adj, K)))
-            self.register_buffer('chebpoly', compute_cheb_poly(static_adj, K))
-
-    def forward(self, x, dyna_adj=None):
-        '''
-        Chebyshev graph convolution operation
-        :param x: (batch_size, F_in, N, T)
-        :return: (batch_size, F_out, N, T)
-        ''' 
-        if dyna_adj is not None:
-            #B, N = x.shape[:2]
-            #rhs = torch.bmm(Tk.reshape(B, N, -1).transpose(1, 2), x.reshape(B, N, -1)).view(B, N, -1, x.shape[-1]) # B N FT x  B N MK -> B MK FT -> B M KF T 
-            #output = torch.matmul(rhs.transpose(-1, -2), self.lins).transpose(-1, -2)
-            Tk = torch.unsqueeze(self.chebpoly, 0) * torch.unsqueeze(dyna_adj, -1) # B N M K
-            rhs = torch.einsum('bfnt,bnmk->bftmk', x, Tk)
-        else:
-            rhs = torch.einsum('bfnt,nmk->bftmk', x, self.chebpoly)
+            self.register_parameter('bias', None)
+        self.reset_parameters()
+    
+    def reset_parameters(self):
+        nn.init.xavier_uniform_(self.weight.permute(2, 3, 0, 1))
+        if self.bias is not None:
+            nn.init.uniform_(self.bias)
         
-        output = torch.einsum('bftmk,kfo->bomt', rhs, self.lins)
-
-        if hasattr(self, 'bias'):
-            output = output + self.bias
-
-        return output
-
-
-
-class ChebConvLite(nn.Module):
-    '''
-    K-order chebyshev graph convolution
-    '''
-
-    def __init__(self, in_channels, out_channels, K, static_adj):
-        '''
-        :param K: int
-        :param in_channles: int, num of channels in the input sequence
-        :param out_channels: int, num of channels in the output sequence
-        '''
-        super(ChebConvLite, self).__init__()
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.lins = torch.nn.ModuleList([
-            nn.Linear(in_channels, out_channels, bias=False) for _ in range(K)
-        ])
-
-        if isinstance(static_adj, torch.Tensor) and static_adj.dim() == 3:
-            self.register_buffer('chebpoly', static_adj)
+    def forward(self, x: torch.FloatTensor, L: torch.FloatTensor, **kwargs):
+        r""" Chebyshev graph convolution operation
+        Args:
+            x (Tensor, [BNI]|[BTNI]): input time series data
+            L (Tensor, [SNM]|[SBNM]|[NM]|[BNM]): adj matrix
+            kwargs: any other specific parameters in dictionary
+        Returns:
+            Tensor, [BNO]|[BTNO]
+        """
+        if self.weight.shape[0] == 1 and L.shape[0] != 1: # S=1 and adj matrix of shape [NM]|[BNM]
+            L = torch.unsqueeze(L, 0) #([NM]|[BNM])->[SNM]|[SBNM]
         else:
-            self.register_buffer('chebpoly', compute_cheb_poly(static_adj, K))
-        self.chebpoly = self.chebpoly.permute(2, 0, 1)
+            assert self.weight.shape[0] == L.shape[0]
+        if self.K > 1:
+            batch_mul = (L.dim() == x.dim() == 4)
+            h = None
+            for L_, weight in zip(L, self.weight):
+                x0 = x
+                if h is None:
+                    h = torch.tensordot(x0, weight[0], dims=([-1], [-1]))   # ([BNI]|[BTNI])[OI] -> ([BNO] | [BTNO])
+                else:
+                    h = h + torch.tensordot(x0, weight[0], dims=([-1], [-1]))
+                if batch_mul:
+                    x1 = torch.einsum("bnm,btni->btmi", L_, x)  #[BMN][BTNI]->[BTMI]
+                else:
+                    x1 = torch.matmul(L_.transpose(-1, -2), x)  # ([BNM]|[NM])->([BMN]|[MN]), [MN]([BNI]|[BTNI])->([BMI]|[BTMI]), [BMN][BNI] -> [BMI]
+                h = h + torch.tensordot(x1, weight[1], dims=([-1], [-1])) # ([BNI]|[BTNI])[OI] -> ([BNO]|[BTNO])
+                for k in range(2, self.K):
+                    if batch_mul:
+                        x2 = 2 * torch.einsum("bnm,btni->btmi", L_, x1) - x0
+                    else:
+                        x2 = 2 * torch.matmul(L_.transpose(-1, -2), x1) - x0
+                    h = h + torch.tensordot(x2, weight[k], dims=([-1], [-1]))
+                    x0, x1 = x1, x2
+        else:
+            weight = self.weight.squeeze(1)
+            if L.dim() == 3:
+                if x.dim() == 3:
+                    rhs = torch.einsum("bni,snm->bism", x, L)
+                elif x.dim() == 4:
+                    rhs = torch.einsum("btni,snm->btism", x, L)
+            elif L.dim() == 4:
+                if x.dim() == 3:
+                    rhs = torch.einsum("bni,sbnm->bism", x, L)
+                elif x.dim() == 4:
+                    rhs = torch.einsum("btni,sbnm->btism", x, L)
+            if x.dim() == 3:
+                h = torch.einsum("bism,soi->bmo", rhs, weight)
+            elif x.dim() == 4:
+                h = torch.einsum("btism,soi->btmo", rhs, weight)
 
-    def forward(self, x, dyna_adj=None):
-        '''
-        Chebyshev graph convolution operation
-        :param x: (batch_size, F_in, N, T)
-        :param dyna_adj: (batch_size, N, N) if not None
-        :return: (batch_size, F_out, N, T)
-        '''
-        x = x.transpose(1, 2) # b n f t
-        x_ = x.reshape(*x.shape[:2], -1) # b n ft
-        output = torch.zeros(x.shape[0], self.out_channels, x.shape[1], x.shape[3]).type_as(x)
-        for k in range(len(self.lins)):
-            T_k = self.chebpoly[k] * dyna_adj # (B, N, N)
-            rhs = torch.matmul(T_k.transpose(1, 2), x_).view(*x.shape) # (B, N, F, T)
-            output = output + self.lins[k](rhs.transpose(-1, -2)).permute(0, 3, 1, 2)
-        return F.relu(output)
+        if self.bias is not None:
+            h = h + self.bias # [BNO]|[BTNO]
+            
+        return h
+        

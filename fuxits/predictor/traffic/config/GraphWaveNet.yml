@@ -1,0 +1,14 @@
+model:
+  hist_steps: 1h
+  pred_steps: [1h]
+  cheb_k: 3
+  time_cov_kernel: 3
+  drop_ratio: 0
+  hidden_size: [16, 64, 16, 64]
+
+data:
+  mode: epsilon
+  epsilon: 0.5
+  sigma: 0.1
+  sysmetrize_aggregation: max
+

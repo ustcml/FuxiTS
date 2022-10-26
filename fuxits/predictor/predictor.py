@@ -19,13 +19,15 @@ class Predictor(LightningModule):
         self.loss = self._get_loss()
         self.loss = losses.MaskedLoss(self.loss, self.missing_value)
         self.save_hyperparameters()
+        if self.train_config['seed'] is not None:
+            seed_everything(self.train_config['seed'], workers=True)
         
-    def reset_parameters(self):
-        for p in self.parameters():
-            if p.dim() > 1:
-                nn.init.xavier_uniform_(p)
-            else:
-                nn.init.uniform_(p)
+    # def reset_parameters(self):
+    #     for p in self.parameters():
+    #         if p.dim() > 1:
+    #             nn.init.xavier_uniform_(p)
+    #         else:
+    #             nn.init.uniform_(p)
 
     def fit(self, train_data:TSDataset, val_data:TSDataset=None, run_mode='detail'):
         self.run_mode = run_mode
@@ -37,7 +39,7 @@ class Predictor(LightningModule):
         print_logger.info('save_dir:' + save_dir)
         if self.train_config['seed'] is not None:
             seed_everything(self.train_config['seed'], workers=True)
-        self.reset_parameters()
+        #self.reset_parameters()
         #refresh_rate = 0 if run_mode in ['light', 'tune'] else 1
         logger = TensorBoardLogger(save_dir=save_dir, name="tensorboard")
         train_loader = train_data.loader(batch_size=self.train_config['batch_size'], \

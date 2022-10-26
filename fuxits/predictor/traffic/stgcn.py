@@ -1,5 +1,4 @@
 from ctypes import Union
-from turtle import forward
 from fuxits.predictor.predictor import Predictor
 import torch.nn as nn
 import torch
@@ -18,6 +17,7 @@ class STGCN(Predictor):
         self.st_conv2 = STConv(cheb_k, time_cov_kernel, hidden_size[2:], num_nodes, chebpoly, drop_ratio)
         self.output = Output(hidden_size[-1], hist_steps - 4 * (time_cov_kernel - 1), num_nodes, pred_steps)
 
+        
     def forward(self, x):
         x_st1 = self.st_conv1(x)
         x_st2 = self.st_conv2(x_st1)
@@ -32,7 +32,12 @@ class FeatAlign(nn.Module):
             self.conv1x1 = nn.Conv2d(c_in, c_out, 1)
 
     def forward(self, x: torch.Tensor):
-        # x should be B x C x T x N
+        """ Align feature maps into the same space
+        Args:
+            x: (Tensor, BTNI)
+        Return:
+            Tensor, BTNI
+        """
         if self.c_in > self.c_out:
             return self.conv1x1(x)
         if self.c_in < self.c_out:
@@ -45,13 +50,13 @@ class Output(nn.Module):
         self.tconv1 = Temporal_Conv(out_channels, out_channels, kernels, "glu")
         self.ln = nn.LayerNorm([num_nodes, out_channels])
         self.tconv2 = Temporal_Conv(out_channels, out_channels, 1, "sigmoid")
-        self.fc = nn.Conv2d(out_channels, pred_steps, 1)
+        self.fc = nn.Linear(out_channels, pred_steps)
     
     def forward(self, x):
         x_t1 = self.tconv1(x)
-        x_ln = self.ln(x_t1.transpose(1,3)).transpose(1, 3) # b x f x n x 1
+        x_ln = self.ln(x_t1) 
         x_t2 = self.tconv2(x_ln)
-        out =  self.fc(x_t2).transpose(1, 3) # b x t x n x f
+        out = self.fc(x_t2)
         return out
 
 
@@ -65,34 +70,43 @@ class Temporal_Conv(nn.Module):
         self.feat_align = FeatAlign(in_channels, out_channels)
         self.conv = nn.Conv2d(in_channels, out_channels * (2 if activation == "glu" else 1), (1, time_cov_kernel), 1)
 
-    def forward(self, x):
-        # x should be B x C x N x T
+    def forward(self, x: torch.Tensor):
+        """
+        Args:
+            x: (Tensor, [BTNI])
+        Returns:
+            Tensor, [BTNI]
+        """
+        x = x.transpose(1, -1) # [BTNI] ->[BINT]
         x_align = self.feat_align(x)
         x_align = x_align[:, :, :, self.time_cov_kernel - 1:]
+        output = None
         if self.activation == "glu":
             output_x, output_sigma = torch.chunk(self.conv(x), 2, dim=1)
-            return (output_x + x_align) * torch.sigmoid(output_sigma)
+            output = (output_x + x_align) * torch.sigmoid(output_sigma)
         elif self.activation == "sigmoid":
-            return torch.sigmoid(self.conv(x) + x_align)
+            output = torch.sigmoid(self.conv(x) + x_align)
         elif self.activation == 'relu':
-            return torch.relu(self.conv(x) + x_align)
-        return None
+            output = torch.relu(self.conv(x) + x_align)
+        return output.transpose(1, -1) # [BINT]->[BTNI]
 
 
 class STConv(nn.Module):
     def __init__(self, cheb_k, time_cov_kernel, hidden_size, num_nodes, static_adj, p, **kwargs) -> None:
         super(STConv, self).__init__()
         self.tconv1 = Temporal_Conv(hidden_size[0], hidden_size[1], time_cov_kernel, 'glu')
-        self.sconv = ChebConv(hidden_size[1], hidden_size[1], cheb_k, static_adj, bias=True)
+        #self.sconv = ChebConv(hidden_size[1], hidden_size[1], cheb_k, static_adj, bias=True)
+        self.sconv = ChebConv(hidden_size[1], hidden_size[1], 1, cheb_k, bias=True)
+        self.register_buffer('static_adj', static_adj)
         self.tconv2 = Temporal_Conv(hidden_size[1], hidden_size[2], time_cov_kernel)
         self.ln = nn.LayerNorm([num_nodes, hidden_size[2]])
         self.dropout = nn.Dropout(p)
     def forward(self, x):
         #x of size b-f-n-t
-        x_t1 = self.tconv1(x) #b-f-n-t -> b-o-n-t1
-        x_s = F.relu(self.sconv(x_t1) + x_t1) # b-o-n-t -> b-o-n-t
-        x_t2 = self.tconv2(x_s) # b-o-n-t -> b-f-n-t1
-        x_ln = self.ln(x_t2.transpose(1,3)).transpose(1,3)     #bfnt->btnf 
+        x_t1 = self.tconv1(x) #[BTNI]->[BSNO]
+        x_s = F.relu(self.sconv(x_t1, self.static_adj) + x_t1) # [BTNI]->[BTNO]
+        x_t2 = self.tconv2(x_s) # [BTNI]->[BSNO]
+        x_ln = self.ln(x_t2)     #bfnt->btnf 
         return self.dropout(x_ln)
        
 
