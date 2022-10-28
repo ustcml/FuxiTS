@@ -10,7 +10,8 @@ def preprocess_graph(mode:str, adj, **kwargs):
             return adj
         assert agg in {'max', 'mean', 'min'}
         if agg == 'max':
-            adj_output = np.maximum(adj, adj.T)
+            #adj_output = np.maximum(adj, adj.T)
+            adj_output = np.where(((adj >= adj.T) & ~np.isposinf(adj))|np.isposinf(adj.T), adj, adj.T)
         elif agg == 'mean':
             adj_output = adj + adj.T
             adj_output[(adj > 0) & (adj.T > 0)] /= 2
@@ -19,13 +20,19 @@ def preprocess_graph(mode:str, adj, **kwargs):
         return adj_output
 
     def binary_graph(adj, epsilon=np.finfo(float).eps):
-        adj[adj > epsilon] = 1
+        ones_idx = (adj>epsilon*10000) & ~np.isposinf(adj)
+        adj[ones_idx] = 1
+        adj[~ones_idx] = 0
         return adj
 
-    def epsilon_graph(adj, sigma=0.1, epsilon=0.5):
-        idx = adj < np.finfo(float).eps
-        output = np.exp(-adj * adj / sigma) 
-        output[(output < epsilon) | idx] = 0.
+    def epsilon_graph(adj, sigma2=0.1, epsilon=0.5):
+        idx = ~np.isposinf(adj)
+        if isinstance(sigma2, float):
+            output = np.exp(- (adj/10000)**2 / sigma2) 
+        elif sigma2 == 'std':
+            std = adj[idx].std()
+            output = np.exp(- (adj/std)**2)
+        output[output < epsilon] = 0.
         np.fill_diagonal(output, 0.)
         return output
 
@@ -51,7 +58,7 @@ def degree(adj_t):
     return torch.sum(adj_t, dim=1)
 
 def add_self_loops_fun(adj_t, weight=1.0):
-    return torch.fill_diag(adj_t, weight)
+    return adj_t.fill_diagonal_(weight) 
 
 def laplacian(adj_t, normalized=None, add_self_loops=False):
     '''
@@ -97,7 +104,10 @@ def compute_cheb_poly(adj, K, normalized=None, add_self_loop=False):
         '''
         adj = torch.from_numpy(adj).type(torch.float32)
         #adj[adj > 1e-10] = 1 # this should be done outside of this function
-        L_tilde = scale_lapacian(laplacian(adj, normalized=normalized, add_self_loops=add_self_loop))
+        if normalized == 'rw':
+            L_tilde = graph_adj_norm(adj, False, add_self_loop)
+        else:    
+            L_tilde = scale_lapacian(laplacian(adj, normalized='sys', add_self_loops=add_self_loop))
         if K == 1:
             return L_tilde
         else:

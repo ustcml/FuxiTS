@@ -70,7 +70,8 @@ class Predictor(LightningModule):
         return output
 
     def predict_step(self, batch, batch_idx):
-        return self.forward(batch)
+        x, y = batch
+        return self.forward(x)
 
     def test_step(self, batch, batch_idx):
         return self._test_step(batch, get_pred_metrics(self.eval_config['test_metrics']))
@@ -85,7 +86,7 @@ class Predictor(LightningModule):
         
     def training_step(self, batch, batch_idx):
         x, y = batch
-        y_pred = self.forward(x)
+        y_pred = self.forward(x, y, batch_idx)
         loss = self.loss(y, y_pred)
         return loss
 

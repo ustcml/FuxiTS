@@ -66,9 +66,10 @@ class METR_LA(TrafficStatePreproc):
     def convert_rawdata(self, flow, coo, num_nodes, **kwargs):
         def convert_adj(mode, **kwargs):
             A = np.zeros([num_nodes]*2)
+            A[:] = np.inf
             A[coo[0], coo[1]] = coo[2]
             kwargs = {k: v for k, v in kwargs.items() if v is not None}
-            return preprocess_graph(mode, A/10000, **kwargs)
+            return preprocess_graph(mode, A, **kwargs)
            
         return {'state':flow, 
                 'sample_freq': timeparse(self.data_meta['sample_freq'])//60,

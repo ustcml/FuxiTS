@@ -9,6 +9,6 @@ model:
 data:
   mode: epsilon
   epsilon: 0.5
-  sigma: 0.1
+  sigma2: 0.1
   sysmetrize_aggregation: max
 

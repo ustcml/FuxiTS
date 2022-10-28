@@ -20,7 +20,7 @@ class ASTGCN(Predictor):
         else:
             self.submodules = ASTGCN_Sub(num_nodes, hist_steps, in_channels, chebpoly, pred_steps, num_chev_filter, cheb_k, num_time_filter, time_cov_strides)
     
-    def forward(self, x):
+    def forward(self, x, y=None, batch_idx=None):
         if isinstance(self.submodules, nn.ModuleList):
             if len(self.submodules) > 1:
                 return torch.stack([m(_) * w for m, w, _ in zip(self.submodules, self.weight, x)]).sum(dim=0)

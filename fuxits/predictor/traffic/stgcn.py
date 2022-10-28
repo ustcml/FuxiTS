@@ -15,10 +15,14 @@ class STGCN(Predictor):
         chebpoly = compute_cheb_poly(static_adj, cheb_k, 'sys')
         self.st_conv1 = STConv(cheb_k, time_cov_kernel, hidden_size[:3], num_nodes, chebpoly, drop_ratio)
         self.st_conv2 = STConv(cheb_k, time_cov_kernel, hidden_size[2:], num_nodes, chebpoly, drop_ratio)
-        self.output = Output(hidden_size[-1], hist_steps - 4 * (time_cov_kernel - 1), num_nodes, pred_steps)
+        #self.output = Output(hidden_size[-1], hist_steps - 4 * (time_cov_kernel - 1), num_nodes, pred_steps)
+        output_len = hist_steps - 4 * (time_cov_kernel - 1)
+        output_kernel = output_len + 1 - pred_steps
+        assert output_kernel > 0
+        self.output = Output(hidden_size[-1], output_kernel, num_nodes, in_channels)
 
         
-    def forward(self, x):
+    def forward(self, x, y=None, batch_idx=None):
         x_st1 = self.st_conv1(x)
         x_st2 = self.st_conv2(x_st1)
         return self.output(x_st2)
@@ -45,12 +49,12 @@ class FeatAlign(nn.Module):
         return x
 
 class Output(nn.Module):
-    def __init__(self, out_channels, kernels, num_nodes, pred_steps) -> None:
+    def __init__(self, in_channels, kernels, num_nodes, out_channels) -> None:
         super(Output, self).__init__()
-        self.tconv1 = Temporal_Conv(out_channels, out_channels, kernels, "glu")
-        self.ln = nn.LayerNorm([num_nodes, out_channels])
-        self.tconv2 = Temporal_Conv(out_channels, out_channels, 1, "sigmoid")
-        self.fc = nn.Linear(out_channels, pred_steps)
+        self.tconv1 = Temporal_Conv(in_channels, in_channels, kernels, "glu")
+        self.ln = nn.LayerNorm([num_nodes, in_channels])
+        self.tconv2 = Temporal_Conv(in_channels, in_channels, 1, "sigmoid")
+        self.fc = nn.Linear(in_channels, out_channels)
     
     def forward(self, x):
         x_t1 = self.tconv1(x)

@@ -1,14 +1,15 @@
 model:
   hist_steps: 1h
-  pred_steps: [1h]
-  cheb_k: 3
-  time_cov_kernel: 3
-  drop_ratio: 0
-  hidden_size: [16, 64, 16, 64]
+  pred_steps: 1h
+  max_diffusion_step: 2
+  hidden_dim: 64
+  num_layers: 2
+  use_gc_for_ru: true
+  use_scheduled_sampling: true
+  cl_decay_steps: 1000
 
 data:
   mode: epsilon
-  epsilon: 0.5
-  sigma: 0.1
-  sysmetrize_aggregation: max
-
+  epsilon: 0.1
+  sigma2: std
+  sysmetrize_aggregation: ~

@@ -21,4 +21,4 @@ eval:
   early_stop_mode: min
   early_stop_patience: 10
   batch_size: 512
-  num_workers: 12
+  num_workers: 0
