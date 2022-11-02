@@ -90,31 +90,56 @@ def scale_lapacian(L:torch.Tensor, lambda_max=None):
     else:
         return (2 * L) / lambda_max - torch.eye(L.shape[0])
 
-
-def compute_cheb_poly(adj, K, normalized=None, add_self_loop=False):
-        '''
-        compute a list of chebyshev polynomials from T_0 to T_{K-1}
-        Parameters
-        ----------
-        L_tilde: scaled Laplacian, np.ndarray, shape (N, N)
-        K: the maximum order of chebyshev polynomials
-        Returns
-        ----------
-        cheb_polynomials: list(np.ndarray), length: K, from T_0 to T_{K-1}
-        '''
+def compute_graph_poly(adj, K, normalized=None, add_self_loop=False, ret_idt_mat=True):
+    if isinstance(adj, np.ndarray):
         adj = torch.from_numpy(adj).type(torch.float32)
-        #adj[adj > 1e-10] = 1 # this should be done outside of this function
-        if normalized == 'rw':
-            L_tilde = graph_adj_norm(adj, False, add_self_loop)
-        else:    
-            L_tilde = scale_lapacian(laplacian(adj, normalized='sys', add_self_loops=add_self_loop))
-        if K == 1:
-            return L_tilde
-        else:
-            LL = [torch.eye(L_tilde.shape[0]), L_tilde]
-            for _ in range(2, K):
-                LL.append(2 * L_tilde @ LL[-1] - LL[-2])
+    if normalized == 'rw':
+        L_tilde = graph_adj_norm(adj, False, add_self_loop)
+    elif normalized == 'sys':
+        L_tilde = scale_lapacian(laplacian(adj, normalized='sys', add_self_loops=add_self_loop))
+    elif normalized is None:
+        L_tilde = adj
+    if K == 1:
+        return L_tilde
+    else:
+        LL = [torch.eye(L_tilde.shape[0]).type_as(L_tilde), L_tilde]
+        for _ in range(2, K):
+            LL.append(L_tilde @ LL[-1])
+        if ret_idt_mat:
             return torch.stack(LL, dim=0)
+        else:
+            return torch.stack(LL[1:], dim=0)
+
+def compute_cheb_poly(adj, K, normalized=None, add_self_loop=False, ret_idt_mat=True):
+    '''
+    compute a list of chebyshev polynomials from T_0 to T_{K-1}
+    Parameters
+    ----------
+    L_tilde: scaled Laplacian, np.ndarray, shape (N, N)
+    K: the maximum order of chebyshev polynomials
+    Returns
+    ----------
+    cheb_polynomials: list(np.ndarray), length: K, from T_0 to T_{K-1}
+    '''
+    if isinstance(adj, np.ndarray):
+        adj = torch.from_numpy(adj).type(torch.float32)
+    #adj[adj > 1e-10] = 1 # this should be done outside of this function
+    if normalized == 'rw':
+        L_tilde = graph_adj_norm(adj, False, add_self_loop)
+    elif normalized == 'sys':
+        L_tilde = scale_lapacian(laplacian(adj, normalized='sys', add_self_loops=add_self_loop))
+    elif normalized is None:
+        L_tilde = adj
+    if K == 1:
+        return L_tilde
+    else:
+        LL = [torch.eye(L_tilde.shape[0]).type_as(L_tilde), L_tilde]
+        for _ in range(2, K):
+            LL.append(2 * L_tilde @ LL[-1] - LL[-2])
+        if ret_idt_mat:
+            return torch.stack(LL, dim=0)
+        else:
+            return torch.stack(LL[1:], dim=0)
 
 def laplacianLambdaMax(L, normalization=None, is_undirected=False):
     eig_fn = eigs

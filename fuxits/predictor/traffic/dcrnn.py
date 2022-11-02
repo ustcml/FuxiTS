@@ -11,7 +11,7 @@ class DCRNN(Predictor):
     def __init__(self, config, in_channels, num_nodes, hist_steps, pred_steps, static_adj, **kwargs):
         super(DCRNN, self).__init__(config)
         cheb = compute_cheb_poly(static_adj, self.model_config['max_diffusion_step']+1, 'rw', True)
-        chebt = compute_cheb_poly(static_adj.T, self.model_config['max_diffusion_step']+1, 'rw', True)
+        chebt = compute_cheb_poly(static_adj.T, self.model_config['max_diffusion_step']+1, 'rw', True, False)
         dcgru_args = {
             "supports": torch.cat([cheb, chebt]),
             "num_nodes": num_nodes,

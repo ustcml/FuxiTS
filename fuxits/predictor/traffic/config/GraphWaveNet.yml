@@ -1,14 +1,19 @@
 model:
   hist_steps: 1h
-  pred_steps: [1h]
-  cheb_k: 3
-  time_cov_kernel: 3
+  pred_steps: 1h
   drop_ratio: 0
-  hidden_size: [16, 64, 16, 64]
+  num_layers: 2
+  gcn_order: 2
+  tcn_kernel: 2
+  tcn_input_dim: 32
+  tcn_output_dim: 32
+  block_output_dim: 256
+  mlp_hidden_dim: 512
+  ada_graph_emb_dim: 10
 
 data:
   mode: epsilon
-  epsilon: 0.5
-  sigma: 0.1
-  sysmetrize_aggregation: max
+  epsilon: 0.1
+  sigma2: std
+  sysmetrize_aggregation: ~
 
