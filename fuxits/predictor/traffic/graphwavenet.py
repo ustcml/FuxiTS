@@ -2,8 +2,7 @@ import math
 from fuxits.predictor.predictor import Predictor
 import torch
 import torch.nn as nn
-from fuxits.layers.graph import ChebConv
-from fuxits.layers.graph import compute_graph_poly
+from fuxits.layers.graph import GraphConv, compute_graph_poly
 import torch.nn.functional as F
 class GraphWaveNet(Predictor):
     
@@ -20,8 +19,8 @@ class GraphWaveNet(Predictor):
         self.receptive_field = (tcn_kernel - 1) * (2**num_layers - 1)
         self.num_blocks = math.ceil((hist_steps - in_channels) / self.receptive_field)
         self.receptive_field = self.receptive_field * self.num_blocks + in_channels
-        cheb = compute_graph_poly(static_adj, self.gcn_order+1, 'rw', True)
-        chebt = compute_graph_poly(static_adj.T, self.gcn_order+1, 'rw', True, False)
+        cheb = compute_graph_poly(static_adj, self.gcn_order+1, norm='rw', lap=False, add_self_loop=True)
+        chebt = compute_graph_poly(static_adj.T, self.gcn_order+1, norm='rw', lap=False, add_self_loop=True, ret_idt_mat=False)
         self.register_buffer('supports', torch.cat([cheb, chebt]))
         if ada_graph_emb_dim is not None:
             self.ada_graph_emb_1 = nn.Parameter(torch.randn(num_nodes, ada_graph_emb_dim))
@@ -36,9 +35,9 @@ class GraphWaveNet(Predictor):
         self.blocks = nn.ModuleList(
             GWaveBlock(num_supports=num_supports, gcn_order=1, **self.model_config) for _ in range(self.num_blocks))
         self.mlp = nn.Sequential(
-            nn.ReLU(),
+            nn.ReLU(inplace=True),
             nn.Linear(block_output_dim, mlp_hidden_dim),
-            nn.ReLU(),
+            nn.ReLU(inplace=True),
             nn.Linear(mlp_hidden_dim, pred_steps)
         )
     
@@ -46,7 +45,7 @@ class GraphWaveNet(Predictor):
     def forward(self, x: torch.Tensor, y: torch.Tensor=None, batch_idx=None):
         if self.ada_graph_emb_1 is not None:
             ada_graph = F.softmax(F.relu(self.ada_graph_emb_1 @ self.ada_graph_emb_2.T), dim=1)
-            ada_graph = compute_graph_poly(ada_graph, self.gcn_order+1, ret_idt_mat=False)
+            ada_graph = compute_graph_poly(ada_graph, self.gcn_order+1, norm=None, lap=False, ret_idt_mat=False)
             supports = torch.cat([self.supports, ada_graph])
         else:
             supports = self.supports
@@ -78,7 +77,8 @@ class GWaveBlock_OneLayer(nn.Module):
         super().__init__()
         self.tcn = nn.Conv2d(in_channels=tcn_input_dim, out_channels=tcn_output_dim*2, kernel_size=(1, tcn_kernel), dilation=tcn_dilation)
         if order is not None:
-            self.hidden = ChebConv(tcn_output_dim, tcn_input_dim, order, num_supports, True)
+            assert order == 1
+            self.hidden = GraphConv(tcn_output_dim, tcn_input_dim, num_supports, True)
         else:
             self.hidden = nn.Linear(tcn_output_dim, tcn_input_dim)
         self.dropout = nn.Dropout(drop_ratio)
@@ -96,7 +96,7 @@ class GWaveBlock_OneLayer(nn.Module):
         output = self.tcn(x.transpose(1, 3)).transpose(1, 3)
         value, gate = torch.chunk(output, 2, -1)
         tcn_output = torch.tanh(value) * torch.sigmoid(gate)
-        if isinstance(self.hidden, ChebConv):
+        if isinstance(self.hidden, GraphConv):
             gcn_output = self.hidden(tcn_output, ada_graph)
         else:
             gcn_output = self.hidden(tcn_output)

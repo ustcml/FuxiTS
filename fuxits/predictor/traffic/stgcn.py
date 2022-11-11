@@ -3,7 +3,8 @@ from fuxits.predictor.predictor import Predictor
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
-from fuxits.layers.graph import ChebConv, compute_cheb_poly
+from fuxits.layers.graph import ChebConv
+from torch_sparse import SparseTensor
 
 class STGCN(Predictor):
     def __init__(self, config, in_channels, num_nodes, hist_steps, pred_steps, static_adj):
@@ -12,9 +13,9 @@ class STGCN(Predictor):
         time_cov_kernel = self.model_config['time_cov_kernel']
         hidden_size = [in_channels] + self.model_config['hidden_size']
         drop_ratio = self.model_config['drop_ratio']
-        chebpoly = compute_cheb_poly(static_adj, cheb_k, 'sys')
-        self.st_conv1 = STConv(cheb_k, time_cov_kernel, hidden_size[:3], num_nodes, chebpoly, drop_ratio)
-        self.st_conv2 = STConv(cheb_k, time_cov_kernel, hidden_size[2:], num_nodes, chebpoly, drop_ratio)
+        #chebpoly = compute_cheb_poly(static_adj, cheb_k, 'sym')
+        self.st_conv1 = STConv(cheb_k, time_cov_kernel, hidden_size[:3], num_nodes, static_adj, drop_ratio)
+        self.st_conv2 = STConv(cheb_k, time_cov_kernel, hidden_size[2:], num_nodes, static_adj, drop_ratio)
         #self.output = Output(hidden_size[-1], hist_steps - 4 * (time_cov_kernel - 1), num_nodes, pred_steps)
         output_len = hist_steps - 4 * (time_cov_kernel - 1)
         output_kernel = output_len + 1 - pred_steps
@@ -100,15 +101,16 @@ class STConv(nn.Module):
         super(STConv, self).__init__()
         self.tconv1 = Temporal_Conv(hidden_size[0], hidden_size[1], time_cov_kernel, 'glu')
         #self.sconv = ChebConv(hidden_size[1], hidden_size[1], cheb_k, static_adj, bias=True)
-        self.sconv = ChebConv(hidden_size[1], hidden_size[1], 1, cheb_k, bias=True)
-        self.register_buffer('static_adj', static_adj)
+        #self.sconv = ChebConv(hidden_size[1], hidden_size[1], 1, cheb_k, bias=True)
+        self.sconv = ChebConv(hidden_size[1], hidden_size[1], cheb_k, cached=True)
+        self.static_adj = SparseTensor.from_dense(static_adj)
         self.tconv2 = Temporal_Conv(hidden_size[1], hidden_size[2], time_cov_kernel)
         self.ln = nn.LayerNorm([num_nodes, hidden_size[2]])
         self.dropout = nn.Dropout(p)
-    def forward(self, x):
+    def forward(self, x:torch.Tensor):
         #x of size b-f-n-t
         x_t1 = self.tconv1(x) #[BTNI]->[BSNO]
-        x_s = F.relu(self.sconv(x_t1, self.static_adj) + x_t1) # [BTNI]->[BTNO]
+        x_s = F.relu(self.sconv(x_t1, self.static_adj.t()) + x_t1) # [BTNI]->[BTNO]
         x_t2 = self.tconv2(x_s) # [BTNI]->[BSNO]
         x_ln = self.ln(x_t2)     #bfnt->btnf 
         return self.dropout(x_ln)

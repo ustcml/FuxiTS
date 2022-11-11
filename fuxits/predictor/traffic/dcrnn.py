@@ -1,17 +1,16 @@
 import math, random
 from fuxits.predictor.predictor import Predictor
-from fuxits.layers.graph import ChebConv
+from fuxits.layers.graph import compute_cheb_poly, GraphConv
 import torch.nn as nn
 import torch
-from fuxits.layers.graph import compute_cheb_poly
 
 
 class DCRNN(Predictor):
     
     def __init__(self, config, in_channels, num_nodes, hist_steps, pred_steps, static_adj, **kwargs):
         super(DCRNN, self).__init__(config)
-        cheb = compute_cheb_poly(static_adj, self.model_config['max_diffusion_step']+1, 'rw', True)
-        chebt = compute_cheb_poly(static_adj.T, self.model_config['max_diffusion_step']+1, 'rw', True, False)
+        cheb = compute_cheb_poly(static_adj, self.model_config['max_diffusion_step']+1, norm='rw', lap=False, add_self_loop=True)
+        chebt = compute_cheb_poly(static_adj.T, self.model_config['max_diffusion_step']+1, norm='rw', lap=False, add_self_loop=True, ret_idt_mat=False)
         dcgru_args = {
             "supports": torch.cat([cheb, chebt]),
             "num_nodes": num_nodes,
@@ -110,12 +109,13 @@ class DCGRUCell_OneLayer(nn.Module):
         self._use_gc_for_ru = use_gc_for_ru
         self.register_buffer("_supports", supports)
         K = max_diffusion_step + 1
+        assert K == 1
         num_supports = len(supports)
         if use_gc_for_ru:
-            self.reset_update = ChebConv(input_dim+hidden_dim, 2*hidden_dim, K, num_supports, bias=True)
+            self.reset_update = GraphConv(input_dim+hidden_dim, 2*hidden_dim, num_supports, bias=True)
         else:
             self.reset_update = nn.Linear(input_dim+hidden_dim, 2*hidden_dim)
-        self.hidden = ChebConv(input_dim+hidden_dim, hidden_dim, K, num_supports, bias=True)
+        self.hidden = GraphConv(input_dim+hidden_dim, hidden_dim, num_supports, bias=True)
         
 
     def forward(self, inputs, state):

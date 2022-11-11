@@ -10,5 +10,5 @@ data:
   mode: epsilon
   epsilon: 0.5
   sigma: 0.1
-  sysmetrize_aggregation: max
+  symmetrize_aggregation: max
 

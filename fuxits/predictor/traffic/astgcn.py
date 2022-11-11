@@ -3,7 +3,7 @@ from fuxits.predictor.predictor import Predictor
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
-from fuxits.layers.graph import compute_cheb_poly, ChebConv
+from fuxits.layers.graph import compute_cheb_poly, GraphConv
 
 class ASTGCN(Predictor):
     def __init__(self, config, in_channels, num_nodes, hist_steps, pred_steps, static_adj, **kwargs):
@@ -51,7 +51,7 @@ class ASTGCN_Block(nn.Module):
         super(ASTGCN_Block, self).__init__()
         self.TAt = Temporal_Attention(in_channels, num_nodes, hist_steps)
         self.SAt = Spatial_Attention(in_channels, num_nodes, hist_steps)
-        self.cheb_conv = ChebConv(in_channels, num_chev_filter, 1, cheb_k)
+        self.cheb_conv = GraphConv(in_channels, num_chev_filter, cheb_k)
         self.register_buffer('static_adj', static_adj)
         self.time_conv = nn.Conv2d(num_chev_filter, num_time_filter, kernel_size=(1, 3), stride=(1, time_cov_strides), padding=(0, 1))
         self.residual_conv = nn.Conv2d(in_channels, num_time_filter, kernel_size=(1, 1), stride=(1, time_cov_strides))

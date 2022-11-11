@@ -9,4 +9,4 @@ model:
 data:
   mode: binary
   epsilon: ~
-  sysmetrize_aggregation: ~
+  symmetrize_aggregation: ~

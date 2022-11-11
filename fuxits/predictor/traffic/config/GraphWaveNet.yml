@@ -15,5 +15,5 @@ data:
   mode: epsilon
   epsilon: 0.1
   sigma2: std
-  sysmetrize_aggregation: ~
+  symmetrize_aggregation: ~
 
