@@ -421,12 +421,6 @@ class ChebConv(MessagePassing):
                 batch: OptTensor = None, lambda_max: OptTensor = None):
         """"""
         if self._cached_edge_index is None:
-            if isinstance(edge_index, SparseTensor):
-                edge_index = edge_index.to_device(x.device)
-            else:
-                edge_index.to(x.device)
-            if edge_weight is not None:
-                edge_weight.to(x.device)
             edge_index, edge_weight = self.__norm__(edge_index, x.size(self.node_dim),
                                          edge_weight, self.normalization,
                                          lambda_max, dtype=x.dtype,

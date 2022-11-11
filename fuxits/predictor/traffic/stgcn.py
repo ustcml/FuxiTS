@@ -109,6 +109,8 @@ class STConv(nn.Module):
         self.dropout = nn.Dropout(p)
     def forward(self, x:torch.Tensor):
         #x of size b-f-n-t
+        if  self.static_adj.device() != x.device:
+            self.static_adj = self.static_adj.device_as(x)
         x_t1 = self.tconv1(x) #[BTNI]->[BSNO]
         x_s = F.relu(self.sconv(x_t1, self.static_adj.t()) + x_t1) # [BTNI]->[BTNO]
         x_t2 = self.tconv2(x_s) # [BTNI]->[BSNO]

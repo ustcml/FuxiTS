@@ -3,7 +3,7 @@ from fuxits.utils import get_model, print_logger, color_dict_normal, set_color
 from fuxits.data.dataset import TSDataset
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', '-m', type=str, default='GraphWaveNet', help='model name')
+    parser.add_argument('--model', '-m', type=str, default='STGCN', help='model name')
     parser.add_argument('--dataset', '-d', type=str, default='METR_LA', help='dataset name')
     parser.add_argument('--mode', choices=['tune', 'light', 'detail'], default='light', help='flag indiates model tuning')
     args, commond_line_args = parser.parse_known_args()
