@@ -1,0 +1,13 @@
+model:
+  hist_steps: 1h
+  pred_steps: 1h
+  hidden_dims: [[64, 64, 64], [64, 64, 64], [64, 64, 64], [64, 64, 64]]
+  first_layer_embedding_size: 64
+  out_layer_dim: 128
+  strides: 3
+
+data:
+  mode: epsilon
+  epsilon: 0.5
+  sigma2: 0.1
+  symmetrize_aggregation: max

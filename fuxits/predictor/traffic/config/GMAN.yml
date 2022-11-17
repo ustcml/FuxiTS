@@ -1,0 +1,16 @@
+model:
+  hist_steps: 1h
+  pred_steps: 1h
+  SE_DIM: 64
+  statt_layers: 1
+  att_heads: 8
+  att_dims: 8
+  bn_decay: 0.1
+  SEPATH: '/amax/home/dove/dataset/traffic/METRLA/SE_metrla.txt'
+  FLOWPATH: '/amax/home/dove/dataset/traffic/METRLA/metr-la.h5'
+
+data:
+  mode: epsilon
+  epsilon: 0.1
+  sigma2: std
+  symmetrize_aggregation: ~
