@@ -1,0 +1,12 @@
+model:
+  hist_steps: 1h
+  pred_steps: 1h
+  cheb_k: 3
+  embed_dim: 8
+  hidden_size: 64
+  num_layers: 2
+
+data:
+  mode: binary
+  epsilon: ~
+  sysmetrize_aggregation: ~
